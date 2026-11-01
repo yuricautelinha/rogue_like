@@ -1,7 +1,7 @@
 import { HEIGHT, OUTBOUNDED_INDEX, TILE_SIZE, WIDTH } from "./constants.js";
 import { generateMap, generateMapData } from "./map.js";
-import { type MapData, type Camera, type RGE_Canvas, type Player, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, TileTypeEnum } from "./models.js";
-import { addDirectionKeyboardInput, clearCanvas, loadCanvas, loadImage, removeDirectionKeyboardInput } from "./utils.js";
+import { type MapData, type Camera, type RGE_Canvas, type Player, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, TileTypeEnum, CompassEnum } from "./models.js";
+import { addDirectionKeyboardInput, clearCanvas, drawGrid, loadCanvas, loadImage, removeDirectionKeyboardInput } from "./utils.js";
 
 const DEBUG = 0;
 const rgeCanvas = loadCanvas("game");
@@ -15,7 +15,9 @@ const player: Player = {
   position: { x: 0, y: 0, },
   body: { x: 0, y: 0, },
   direction: { x: 0, y: 0, },
-  speed: 10.2
+  speed: 1.2,
+  speedModifier: 1,
+  facing: CompassEnum.NORTH
 };
 
 const camera: Camera = {
@@ -45,9 +47,10 @@ function main() {
 
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
+
   player.sprite = {
     spriteSheet: gameSprites,
-    position: { x: 0, y: 0 }
+    position: { x: 4, y: 1 }
   };
 
   player.position.x = x;
@@ -71,7 +74,11 @@ function gameLoop(mapData: MapData, lastTime: number) {
     context.beginPath();
     clearCanvas(rgeCanvas);
     drawMap(camera, mapData, rgeCanvas);
-    //drawGrid(TILE_SIZE, camera, rgeCanvas, "#FFFFFF22");
+
+    if (DEBUG) {
+      drawGrid(TILE_SIZE, camera, rgeCanvas, "#FFFFFFAA");
+    }
+
     drawPlayer(player, camera, mapData, context);
     context.closePath();
 
@@ -114,8 +121,8 @@ function movePlayer(
   const tileIndex = mapData.map[y]?.[x];
 
   if (mapData.tiles[tileIndex ?? OUTBOUNDED_INDEX]?.type === TileTypeEnum.GROUND) {
-    player.body.x = player.body.x + player.direction.x * player.speed * dt;
-    player.body.y = player.body.y + player.direction.y * player.speed * dt;
+    player.body.x = player.body.x + player.direction.x * (player.speed * player.speedModifier) * dt;
+    player.body.y = player.body.y + player.direction.y * (player.speed * player.speedModifier) * dt;
 
     if (player.body.x >= x && player.direction.x > 0
       || player.body.x <= x && player.direction.x < 0
@@ -210,7 +217,7 @@ function drawPlayer(
 
   context.drawImage(
     player.sprite.spriteSheet.sprites,
-    player.sprite.position.x * player.sprite.spriteSheet.tileSize,
+    (player.sprite.position.x + player.facing) * player.sprite.spriteSheet.tileSize,
     player.sprite.position.y * player.sprite.spriteSheet.tileSize,
     player.sprite.spriteSheet.tileSize,
     player.sprite.spriteSheet.tileSize,
@@ -222,6 +229,8 @@ function drawPlayer(
 }
 
 function setupKeyEvents(inputs: DirectionKeyboardInput[]): void {
+  let s = 0;
+
   window.addEventListener("keydown", (event) => {
     switch (event.key) {
       case ('w'):
@@ -229,24 +238,45 @@ function setupKeyEvents(inputs: DirectionKeyboardInput[]): void {
           id: event.key,
           direction: { x: 0, y: -1 }
         }, inputs);
+        player.facing = CompassEnum.NORTH;
         break;
       case ('s'):
         addDirectionKeyboardInput({
           id: event.key,
           direction: { x: 0, y: 1 }
         }, inputs);
+        player.facing = CompassEnum.SOUTH;
         break;
       case ('a'):
         addDirectionKeyboardInput({
           id: event.key,
           direction: { x: -1, y: 0 }
         }, inputs);
+        player.facing = CompassEnum.WEST;
         break;
       case ('d'):
         addDirectionKeyboardInput({
           id: event.key,
           direction: { x: 1, y: 0 }
         }, inputs);
+        player.facing = CompassEnum.EAST;
+        break;
+      case ('v'):
+        player.speedModifier = 3;
+        break;
+      case ('g'):
+        if (player.sprite) {
+          switch((s++) % 3) {
+            case (0):
+              player.sprite.position.x = 4;
+              player.sprite.position.y = 1;
+              break;
+            case (1):
+              player.sprite.position.x = 0;
+              player.sprite.position.y = 1;
+              break;
+          };
+        }
         break;
     }
   });
@@ -276,6 +306,9 @@ function setupKeyEvents(inputs: DirectionKeyboardInput[]): void {
           id: event.key,
           direction: { x: 1, y: 0 }
         }, inputs);
+        break;
+      case ('v'):
+        player.speedModifier = 1;
         break;
     }
   });

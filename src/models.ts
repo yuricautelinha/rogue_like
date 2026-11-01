@@ -40,6 +40,13 @@ export type Camera = {
   direction: Vector2;
 };
 
+export enum CompassEnum {
+  NORTH,
+  EAST,
+  SOUTH,
+  WEST
+};
+
 export type Player = {
   id: number;
   color: string;
@@ -47,6 +54,8 @@ export type Player = {
   direction: Vector2;
   body: Vector2;
   speed: number;
+  speedModifier: number;
+  facing: CompassEnum;
   sprite?: Sprite;
 };
 
