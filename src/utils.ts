@@ -1,5 +1,4 @@
-import { OUTBOUNDED_INDEX } from "./constants.js";
-import type { Camera, DirectionKeyboardInput, RGE_Canvas } from "./models.js";
+import type { Camera, MapData, Player, RGE_Canvas } from "./models.js";
 
 export function loadCanvas(elementId: string): RGE_Canvas {
   const canvas = document.getElementById(elementId);
@@ -27,10 +26,21 @@ export function loadImage(imageId: string): HTMLImageElement {
   return img;
 }
 
-export function clearCanvas(rgeCanvas: RGE_Canvas): void {
+export function loadButton(elementId: string): HTMLButtonElement {
+  const button = document.getElementById(elementId);
+
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error("Button not found");
+  }
+
+  return button;
+}
+
+export function clearCanvas(color: string, rgeCanvas: RGE_Canvas): void {
   const { width, height } = rgeCanvas.canvas;
 
-  rgeCanvas.context.clearRect(0, 0, width, height);
+  rgeCanvas.context.fillStyle = color;
+  rgeCanvas.context.fillRect(0, 0, width, height);
 }
 
 export function drawGrid(
@@ -59,32 +69,40 @@ export function drawGrid(
   context.stroke();
 }
 
-export function addDirectionKeyboardInput(
-  input: DirectionKeyboardInput,
-  inputs: DirectionKeyboardInput[]
-) {
-  const index = inputs.findIndex(playerInput => playerInput.id === input.id);
-
-  if (index === OUTBOUNDED_INDEX) {
-    inputs.unshift(input);
-  }
-}
-
-export function removeDirectionKeyboardInput(
-  input: DirectionKeyboardInput,
-  inputs: DirectionKeyboardInput[]
-) {
-  const index = inputs.findIndex(playerInput => playerInput.id === input.id);
-
-  if (index === OUTBOUNDED_INDEX) {
-    throw new Error("No keyboard event to remove");
-  }
-
-  inputs.splice(index, 1);
-}
-
 export const rand = (min: number = 0, max: number = 10): number =>
   Math.floor(Math.random() * (max - min + 1) + min);
 
 export const sleep = (sleepTime: number) =>
   new Promise(resolve => setTimeout(resolve, sleepTime))
+
+export function saveMapToLocalStorage(mapData: MapData) {
+  localStorage.setItem('map', JSON.stringify(mapData));
+}
+
+export function loadMapFromLocalStorage(player: Player, mapData: MapData) {
+  const mapString = localStorage.getItem('map');
+
+  if (!mapString) {
+    console.error("No map saved on local storage");
+    return;
+  }
+
+  try {
+    const newMapData = JSON.parse(mapString);
+
+    mapData.height = newMapData.height;
+    mapData.width = newMapData.width;
+    mapData.tileSize = newMapData.tileSize;
+    mapData.map = newMapData.map;
+    //mapData.tilesData = newMapData.tilesData;
+    //mapData.mapSprite = newMapData.mapSprite;
+
+    player.position.x = newMapData.spawnPosition.x;
+    player.position.y = newMapData.spawnPosition.y;
+    player.body.x = player.position.x;
+    player.body.y = player.position.y;
+  } catch (error) {
+    console.error("Map corrupted. Could not parse it.");
+    return;
+  }
+}

@@ -1,4 +1,4 @@
-import { type MapData, type TileMap, TileTypeEnum, type MapSprite } from "./models.js";
+import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap } from "./models.js";
 import { rand } from "./utils.js";
 
 export function generateMapData(
@@ -7,39 +7,46 @@ export function generateMapData(
   height: number,
   mapSprite: MapSprite,
 ): MapData {
-  const map: number[][] =
+  const map: TileMap[][] =
     new Array(height).fill(0).map(() =>
       new Array(width)
         .fill(mapSprite.wallOffset)
-        .map(wallOffset => wallOffset - 1 + rand(0, mapSprite.tileTypeSpriteCount - 1))
+        .map((wallOffset: number): TileMap => ({
+          tileMapDataId: wallOffset - 1 + rand(0, mapSprite.tileTypeSpriteCount - 1),
+          revelead: false,
+          visible: false,
+        }))
     );
 
-  const tiles: TileMap[] = new Array(mapSprite.tileTypeSpriteCount)
+  const tiles: TileMapData[] = new Array(mapSprite.tileTypeSpriteCount)
     .fill(null)
-    .map((_, x: number): TileMap => ({
+    .map((_, index: number): TileMapData => ({
+      id: index,
       type: TileTypeEnum.GROUND,
       sprite: {
         spriteSheet: mapSprite.spriteSheet,
-        position: { x: x + mapSprite.groundOffset, y: 0 }
+        position: { x: index + mapSprite.groundOffset, y: 0 }
       },
       color: "GREEN"
     })).concat(
       new Array(mapSprite.tileTypeSpriteCount)
         .fill(null)
-        .map((_, x: number): TileMap => ({
+        .map((_, index: number): TileMapData => ({
+          id: index,
           type: TileTypeEnum.WALL,
           sprite: {
             spriteSheet: mapSprite.spriteSheet,
-            position: { x: x + mapSprite.wallOffset, y: 0 }
+            position: { x: index + mapSprite.wallOffset, y: 0 }
           },
           color: "#202020"
         }))
     );
 
-  return { width, height, map, tiles, tileSize, mapSprite };
+  return { width, height, map, tilesData: tiles, tileSize, mapSprite, spawnPosition: { x: 0, y: 0 } };
 }
 
-export function generateMap({ tiles, map, width, height, mapSprite }: MapData): { x: number; y: number } {
+export function generateMap(mapData: MapData): MapData {
+  const { tilesData: tiles, map, width, height, mapSprite, spawnPosition } = mapData;
   const coverage = 20 + rand(0, 15);
 
   let n = (width * height) * (coverage * 0.01);
@@ -50,9 +57,10 @@ export function generateMap({ tiles, map, width, height, mapSprite }: MapData): 
   let dy = 0;
   let straight = 0;
 
-  const tile = map[y];
-  if (tile !== undefined) {
-    tile[x] = rand(0, mapSprite.tileTypeSpriteCount - 1);
+  const tile = map[y]?.[x];
+
+  if (tile) {
+    tile.tileMapDataId = rand(0, mapSprite.tileTypeSpriteCount - 1);
   }
 
   while (n > 0) {
@@ -85,21 +93,18 @@ export function generateMap({ tiles, map, width, height, mapSprite }: MapData): 
     x = Math.min(Math.max(x + dx, 1), width - 2);
     y = Math.min(Math.max(y + dy, 1), height - 2);
 
-    const mapY = map[y];
+    const tile = map[y]?.[x];
 
-    if (!mapY) {
-      throw new Error("Map y axis not found.");
-    }
-
-    const mapX = mapY[x];
-
-    if (mapY[x] !== undefined && mapX && tiles[mapX]?.type === TileTypeEnum.WALL) {
-      mapY[x] = rand(0, mapSprite.tileTypeSpriteCount - 1);
+    if (tile && tiles[tile.tileMapDataId]?.type === TileTypeEnum.WALL) {
+      tile.tileMapDataId = rand(0, mapSprite.tileTypeSpriteCount - 1);
       n--;
     }
   }
 
-  return { x, y };
+  spawnPosition.x = x;
+  spawnPosition.y = y;
+
+  return mapData;
 }
 
 export const mapData = {

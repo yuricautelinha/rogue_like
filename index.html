@@ -18,11 +18,19 @@
       img {
         display: none;
       }
+
+      #buttons-control {
+        text-align: center;
+      }
     </style>
   </head>
   <body>
     <canvas id="game"></canvas>
     <img id="game-sprites" src="./assets/game-sprites.png" />
+    <div id="buttons-control">
+      <button id="save-map-button" type="button">Save map</button>
+      <button id="load-map-button" type="button">Load saved map</button>
+    </div>
     <script src="./dist/index.js" type="module"></script>
   </body>
 </html>

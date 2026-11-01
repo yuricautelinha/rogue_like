@@ -1,7 +1,10 @@
+import { moveCamera } from "./camera.js";
 import { HEIGHT, OUTBOUNDED_INDEX, TILE_SIZE, WIDTH } from "./constants.js";
+import { setupKeyEvents } from "./controls.js";
 import { generateMap, generateMapData } from "./map.js";
-import { type MapData, type Camera, type RGE_Canvas, type Player, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, TileTypeEnum, CompassEnum } from "./models.js";
-import { addDirectionKeyboardInput, clearCanvas, drawGrid, loadCanvas, loadImage, removeDirectionKeyboardInput } from "./utils.js";
+import { type MapData, type Camera, type RGE_Canvas, type Player, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type Vector2, TileTypeEnum, normalizedDirection, type KeyboardInput } from "./models.js";
+import { drawPlayer, initPlayer, movePlayer } from "./player.js";
+import { clearCanvas, drawGrid, loadButton, loadCanvas, loadImage, loadMapFromLocalStorage, saveMapToLocalStorage } from "./utils.js";
 
 const DEBUG = 0;
 const rgeCanvas = loadCanvas("game");
@@ -9,27 +12,29 @@ const { canvas, context } = rgeCanvas;
 
 context.imageSmoothingEnabled = false;
 
-const player: Player = {
-  id: 0,
-  color: "WHITE",
-  position: { x: 0, y: 0, },
-  body: { x: 0, y: 0, },
-  direction: { x: 0, y: 0, },
-  speed: 1.2,
-  speedModifier: 1,
-  facing: CompassEnum.NORTH
-};
-
-const camera: Camera = {
-  position: { x: 0, y: 0 },
-  direction: { x: 0, y: 0 }
-};
-
-const inputs: DirectionKeyboardInput[] = [];
-
 window.addEventListener("load", main);
 
 function main() {
+  const directionalInputs: DirectionKeyboardInput[] = [];
+  const controlInputs: KeyboardInput[] = [];
+
+  const player: Player = {
+    id: 0,
+    viewDistance: 4,
+    color: "WHITE",
+    position: { x: 0, y: 0, },
+    body: { x: 0, y: 0, },
+    direction: { x: 0, y: 0, },
+    speed: 1.2,
+    facing: CompassEnum.NORTH,
+    memory: 5000
+  };
+
+  const camera: Camera = {
+    position: { x: 0, y: 0 },
+    direction: { x: 0, y: 0 }
+  };
+
   const gameSprites: SpriteSheet = {
     sprites: loadImage("game-sprites"),
     tileSize: 32,
@@ -42,37 +47,36 @@ function main() {
     wallOffset: 5
   };
 
-  const mapData = generateMapData(TILE_SIZE, 1024, 720, mapSprite);
-  const { x, y } = generateMap(mapData);
+  const mapData = generateMap(generateMapData(TILE_SIZE, 16, 16, mapSprite));
 
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
 
-  player.sprite = {
-    spriteSheet: gameSprites,
-    position: { x: 4, y: 1 }
-  };
+  loadButton("load-map-button").addEventListener("click", () => loadMapFromLocalStorage(player, mapData));
+  loadButton("save-map-button").addEventListener("click", () => saveMapToLocalStorage(mapData));
 
-  player.position.x = x;
-  player.position.y = y;
-
-  player.body.x = player.position.x;
-  player.body.y = player.position.y;
-
-  setupKeyEvents(inputs);
-
-  requestAnimationFrame(gameLoop(mapData, 0));
+  initPlayer(player, mapData, gameSprites);
+  setupKeyEvents(player, directionalInputs, controlInputs);
+  requestAnimationFrame(gameLoop(player, camera, directionalInputs, controlInputs, mapData, 0));
 };
 
-function gameLoop(mapData: MapData, lastTime: number) {
+function gameLoop(
+  player: Player,
+  camera: Camera,
+  directionalInputs: DirectionKeyboardInput[],
+  controlInputs: KeyboardInput[],
+  mapData: MapData,
+  lastTime: number
+) {
   return function(time: number) {
     const dt = (time - lastTime) / 1000;
 
-    movePlayer(player, mapData, inputs, dt);
-    moveCamera(camera, mapData, canvas);
+    movePlayer(player, mapData, directionalInputs, controlInputs, dt);
+    moveCamera(player, camera, mapData, canvas);
+    updateFog(player, camera, mapData, canvas);
 
     context.beginPath();
-    clearCanvas(rgeCanvas);
+    clearCanvas("#000", rgeCanvas);
     drawMap(camera, mapData, rgeCanvas);
 
     if (DEBUG) {
@@ -82,69 +86,13 @@ function gameLoop(mapData: MapData, lastTime: number) {
     drawPlayer(player, camera, mapData, context);
     context.closePath();
 
-    requestAnimationFrame(gameLoop(mapData, time));
-  }
-}
-
-function moveCamera(
-  camera: Camera,
-  mapData: MapData,
-  canvas: HTMLCanvasElement
-) {
-  const tilesX = Math.floor(canvas.width / mapData.tileSize);
-  const tilesY = Math.floor(canvas.height / mapData.tileSize);
-
-  camera.position.x = Math.min(Math.max(player.body.x - tilesX / 2, 0), mapData.width - tilesX);
-  camera.position.y = Math.min(Math.max(player.body.y - tilesY / 2, 0), mapData.height - tilesY);
-}
-
-function movePlayer(
-  player: Player,
-  mapData: MapData,
-  inputs: DirectionKeyboardInput[],
-  dt: number
-) {
-  const inputDirection = inputs[0];
-
-  if (!player.direction.x && !player.direction.y) {
-    if (inputDirection) {
-      player.direction.x = inputDirection.direction.x;
-      player.direction.y = inputDirection.direction.y;
-    } else {
-      return;
-    }
-  }
-
-  const x = player.position.x + player.direction.x;
-  const y = player.position.y + player.direction.y;
-
-  const tileIndex = mapData.map[y]?.[x];
-
-  if (mapData.tiles[tileIndex ?? OUTBOUNDED_INDEX]?.type === TileTypeEnum.GROUND) {
-    player.body.x = player.body.x + player.direction.x * (player.speed * player.speedModifier) * dt;
-    player.body.y = player.body.y + player.direction.y * (player.speed * player.speedModifier) * dt;
-
-    if (player.body.x >= x && player.direction.x > 0
-      || player.body.x <= x && player.direction.x < 0
-      || player.body.y >= y && player.direction.y > 0
-      || player.body.y <= y && player.direction.y < 0) {
-      player.direction.x = 0;
-      player.position.x = x;
-      player.body.x = x;
-
-      player.direction.y = 0;
-      player.position.y = y;
-      player.body.y = y;
-    }
-  } else {
-    player.direction.x = 0;
-    player.direction.y = 0;
+    requestAnimationFrame(gameLoop(player, camera, directionalInputs, controlInputs, mapData, time));
   }
 }
 
 function drawMap(
   camera: Camera,
-  { map, mapSprite, tileSize, tiles }: MapData,
+  { map, mapSprite, tileSize, tilesData: tiles }: MapData,
   { canvas, context }: RGE_Canvas,
 ): void {
   const tilesX = Math.ceil(canvas.width / tileSize) + 1;
@@ -158,167 +106,160 @@ function drawMap(
 
   for (let y = 0; y < tilesY; ++y) {
     for (let x = 0; x < tilesX; ++x) {
-      const tile = tiles[map?.[y + cy]?.[x + cx] ?? OUTBOUNDED_INDEX];
+      const mapTile = map?.[y + cy]?.[x + cx];
 
-      if (!tile) {
+      if (!mapTile) {
+        continue;
+      }
+
+      const tileData = tiles[mapTile.tileMapDataId];
+
+      if (!tileData || !mapTile.revelead) {
         continue;
       }
 
       context.drawImage(
         mapSprite.spriteSheet.sprites,
-        tile.sprite.position.x * tile.sprite.spriteSheet.tileSize,
-        tile.sprite.position.y * tile.sprite.spriteSheet.tileSize,
-        tile.sprite.spriteSheet.tileSize,
-        tile.sprite.spriteSheet.tileSize,
+        tileData.sprite.position.x * tileData.sprite.spriteSheet.tileSize,
+        tileData.sprite.position.y * tileData.sprite.spriteSheet.tileSize,
+        tileData.sprite.spriteSheet.tileSize,
+        tileData.sprite.spriteSheet.tileSize,
         (x - offsetX) * tileSize,
         (y - offsetY) * tileSize,
         tileSize,
         tileSize
       );
+
+      if (!mapTile.visible) {
+        context.fillStyle = "#00000099";
+        context.fillRect(
+          (x - offsetX) * tileSize,
+          (y - offsetY) * tileSize,
+          tileSize,
+          tileSize
+        );
+      }
     }
   }
 }
 
-function drawPlayer(
+function updateFog(
   player: Player,
   camera: Camera,
-  { tileSize }: MapData,
-  context: CanvasRenderingContext2D
-): void {
-  const padding = 20;
-  const x = (player.body.x - camera.position.x) * tileSize + padding / 2;
-  const y = (player.body.y - camera.position.y) * tileSize + padding / 2;
-  const size = tileSize - padding;
-
-  if (DEBUG) {
-    context.fillStyle = "RED";
-    context.fillRect(
-      (player.position.x - camera.position.x) * tileSize,
-      (player.position.y - camera.position.y) * tileSize,
-      tileSize,
-      tileSize
-    );
-
-    context.fillStyle = "BLACK";
-    context.fillRect(
-      (player.position.x + player.direction.x - camera.position.x) * tileSize,
-      (player.position.y + player.direction.y - camera.position.y) * tileSize,
-      tileSize,
-      tileSize
-    );
-
-    context.fillStyle = player.color;
-    context.fillRect(x, y, size, size);
-  }
-
-  if (!player.sprite) {
-    throw new Error("Player has no sprite");
-  }
-
-  context.drawImage(
-    player.sprite.spriteSheet.sprites,
-    (player.sprite.position.x + player.facing) * player.sprite.spriteSheet.tileSize,
-    player.sprite.position.y * player.sprite.spriteSheet.tileSize,
-    player.sprite.spriteSheet.tileSize,
-    player.sprite.spriteSheet.tileSize,
-    x,
-    y,
-    size,
-    size,
-  );
-}
-
-function setupKeyEvents(inputs: DirectionKeyboardInput[]): void {
-  let s = 0;
-
-  window.addEventListener("keydown", (event) => {
-    switch (event.key) {
-      case ('w'):
-        addDirectionKeyboardInput({
-          id: event.key,
-          direction: { x: 0, y: -1 }
-        }, inputs);
-        player.facing = CompassEnum.NORTH;
-        break;
-      case ('s'):
-        addDirectionKeyboardInput({
-          id: event.key,
-          direction: { x: 0, y: 1 }
-        }, inputs);
-        player.facing = CompassEnum.SOUTH;
-        break;
-      case ('a'):
-        addDirectionKeyboardInput({
-          id: event.key,
-          direction: { x: -1, y: 0 }
-        }, inputs);
-        player.facing = CompassEnum.WEST;
-        break;
-      case ('d'):
-        addDirectionKeyboardInput({
-          id: event.key,
-          direction: { x: 1, y: 0 }
-        }, inputs);
-        player.facing = CompassEnum.EAST;
-        break;
-      case ('v'):
-        player.speedModifier = 3;
-        break;
-      case ('g'):
-        if (player.sprite) {
-          switch((s++) % 3) {
-            case (0):
-              player.sprite.position.x = 4;
-              player.sprite.position.y = 1;
-              break;
-            case (1):
-              player.sprite.position.x = 0;
-              player.sprite.position.y = 1;
-              break;
-          };
-        }
-        break;
-    }
-  });
-
-  window.addEventListener("keyup", (event) => {
-    switch (event.key) {
-      case ('w'):
-        removeDirectionKeyboardInput({
-          id: event.key,
-          direction: { x: 0, y: -1 }
-        }, inputs);
-        break;
-      case ('s'):
-        removeDirectionKeyboardInput({
-          id: event.key,
-          direction: { x: 0, y: 1 }
-        }, inputs);
-        break;
-      case ('a'):
-        removeDirectionKeyboardInput({
-          id: event.key,
-          direction: { x: -1, y: 0 }
-        }, inputs);
-        break;
-      case ('d'):
-        removeDirectionKeyboardInput({
-          id: event.key,
-          direction: { x: 1, y: 0 }
-        }, inputs);
-        break;
-      case ('v'):
-        player.speedModifier = 1;
-        break;
-    }
-  });
-}
-
-export function centerCameraToPlayer(
-  camera: Camera,
-  { tileSize }: MapData,
-  canvas: HTMLCanvasElement
+  mapData: MapData,
+  canvas: HTMLCanvasElement,
 ) {
-  camera.position.x = (player.body.x - canvas.width / 2) / tileSize;
-  camera.position.y = (player.body.y - canvas.height / 2) / tileSize;
+  const { tileSize, map } = mapData;
+  const tilesX = Math.ceil(canvas.width / tileSize) + 1;
+  const tilesY = Math.ceil(canvas.height / tileSize) + 1;
+
+  const cx = Math.floor(camera.position.x);
+  const cy = Math.floor(camera.position.y);
+
+  const px = player.position.x;
+  const py = player.position.y;
+
+
+  const facing = normalizedDirection[player.facing];
+
+  for (let y = 0; y < tilesY; ++y) {
+    for (let x = 0; x < tilesX; ++x) {
+      const mx = x + cx;
+      const my = y + cy;
+      const mapTile = map?.[my]?.[mx];
+
+      if (!mapTile) {
+        continue;
+      }
+
+      const isInFront = player.viewDistance === 0 && mx === px + facing.x && my === py + facing.y;
+      const isGoingTo = player.viewDistance === 0 && mx === px + player.direction.x && my === py + player.direction.y;
+
+      mapTile.visible = isGoingTo;
+      mapTile.revelead = mapTile.revelead || isGoingTo || isInFront;
+
+      if (isGoingTo || isInFront) {
+        mapTile.reveleadDate = Date.now();
+      }
+
+      if (!mapTile.reveleadDate || (Date.now() - mapTile.reveleadDate) > player.memory) {
+        mapTile.revelead = false;
+      }
+    }
+  }
+
+  for (let y = -player.viewDistance; y < player.viewDistance + 1; ++y) {
+    for (let x = -player.viewDistance; x < player.viewDistance + 1; ++x) {
+      const mx = px + x;
+      const my = py + y;
+
+      const dx = mx - player.position.x;
+      const dy = my - player.position.y;
+      const pd = normalizedDirection[player.facing];
+      const dot = pd.x * dx + pd.y * dy;
+
+      if (dot < 0) continue;
+
+      const mapTile = map?.[my]?.[mx];
+
+      if (!mapTile) {
+        continue;
+      }
+
+      const hasLightOfSight = validateLineOfSight(
+        mapData,
+        player.position,
+        { x: mx, y: my }
+      );
+
+      if (hasLightOfSight) {
+        mapTile.visible = true;
+        mapTile.revelead = true;
+        mapTile.reveleadDate = Date.now();
+      }
+    }
+  }
+}
+
+function validateLineOfSight(
+  { map, tilesData }: MapData,
+  p1: Vector2,
+  p2: Vector2
+): boolean {
+  let x = p1.x;
+  let y = p1.y;
+
+  const dx = Math.abs(p2.x - x);
+  const dy = Math.abs(p2.y - y);
+
+  const sx = (x < p2.x) ? 1 : -1;
+  const sy = (y < p2.y) ? 1 : -1;
+
+  let err = dx - dy;
+
+  while (true) {
+    const e2 = 2 * err;
+
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+
+    if (x === p2.x && y === p2.y) {
+      return true;
+    }
+
+    const mapTile = map?.[y]?.[x];
+
+    const tile = tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX];
+
+    if (tile?.type === TileTypeEnum.WALL) {
+      return false;
+    }
+  }
 }
