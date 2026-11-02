@@ -1,5 +1,5 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type DirectionKeyboardInput, CompassEnum, type Player, normalizedDirection, type KeyboardInput, KeyboardInputTypeEnum } from "./models.js";
+import { type DirectionKeyboardInput, CompassEnum, type Entity, normalizedDirection, type KeyboardInput, KeyboardInputTypeEnum } from "./models.js";
 
 const directionalKeyToCompassEnum: Record<string, CompassEnum> = {
   w: CompassEnum.NORTH,
@@ -9,7 +9,7 @@ const directionalKeyToCompassEnum: Record<string, CompassEnum> = {
 };
 
 export function setupKeyEvents(
-  player: Player,
+  player: Entity,
   directionalInputs: DirectionKeyboardInput[],
   controlInputs: KeyboardInput[]
 ): void {

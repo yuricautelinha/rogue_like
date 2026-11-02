@@ -47,6 +47,8 @@ export type MapSprite = {
 export type Camera = {
   position: Vector2;
   direction: Vector2;
+  freelook: boolean;
+  speed: number;
 };
 
 export enum CompassEnum {
@@ -70,7 +72,7 @@ export const directionToCompassMap: Record<string, CompassEnum> = {
   [`(1,0)`]: CompassEnum.EAST,
 };
 
-export type Player = {
+export type Entity = {
   id: number;
   color: string;
   position: Vector2;

@@ -1,4 +1,4 @@
-import type { Camera, MapData, Player, RGE_Canvas } from "./models.js";
+import type { Camera, MapData, Entity, RGE_Canvas } from "./models.js";
 
 export function loadCanvas(elementId: string): RGE_Canvas {
   const canvas = document.getElementById(elementId);
@@ -31,6 +31,16 @@ export function loadButton(elementId: string): HTMLButtonElement {
 
   if (!(button instanceof HTMLButtonElement)) {
     throw new Error("Button not found");
+  }
+
+  return button;
+}
+
+export function loadInput(elementId: string): HTMLInputElement {
+  const button = document.getElementById(elementId);
+
+  if (!(button instanceof HTMLInputElement)) {
+    throw new Error("Input not found");
   }
 
   return button;
@@ -79,7 +89,7 @@ export function saveMapToLocalStorage(mapData: MapData) {
   localStorage.setItem('map', JSON.stringify(mapData));
 }
 
-export function loadMapFromLocalStorage(player: Player, mapData: MapData) {
+export function loadMapFromLocalStorage(player: Entity, mapData: MapData) {
   const mapString = localStorage.getItem('map');
 
   if (!mapString) {

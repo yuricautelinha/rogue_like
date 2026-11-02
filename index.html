@@ -19,17 +19,31 @@
         display: none;
       }
 
-      #buttons-control {
+      #buttons-control, #player-control {
         text-align: center;
       }
     </style>
   </head>
   <body>
-    <canvas id="game"></canvas>
     <img id="game-sprites" src="./assets/game-sprites.png" />
+    <canvas id="game"></canvas>
     <div id="buttons-control">
       <button id="save-map-button" type="button">Save map</button>
       <button id="load-map-button" type="button">Load saved map</button>
+      <button id="debug-button" type="button">Debug mode</button>
+      <button id="freelook-button" type="button">Freelook mode</button>
+    </div>
+    <div id="player-control">
+      <div>
+        <input id="player-speed" type="number" min="0" value="50" />
+        <button id="set-player-speed-button">Set player speed</button>
+        <button id="set-player-speed-to-default-button">Set player speed to default</button>
+      </div>
+      <div>
+        <input id="player-view-distance" type="number" min="0" step="1" value="10" />
+        <button id="set-player-view-distance-button">Set player view distance</button>
+        <button id="set-player-view-distance-to-default-button">Set player view distance to default</button>
+      </div>
     </div>
     <script src="./dist/index.js" type="module"></script>
   </body>
