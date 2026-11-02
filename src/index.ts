@@ -2,8 +2,8 @@ import { moveCamera } from "./camera.js";
 import { HEIGHT, OUTBOUNDED_INDEX, TILE_SIZE, WIDTH } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
 import { drawMap, generateMap, generateMapData, updateMapFog, updateMapWithoutFog } from "./map.js";
-import { type MapData, type Camera, type Entity, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, TileTypeEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum } from "./models.js";
-import { drawEntities, drawEntity, moveEntity } from "./entity.js";
+import { type MapData, type Camera, type Entity, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum, type Vector2, TileTypeEnum } from "./models.js";
+import { addEnemyBasedOnMousePosition, drawEntities, drawEntity, moveEntity } from "./entity.js";
 import { clearCanvas, drawGrid, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage } from "./utils.js";
 import { initPlayer } from "./player.js";
 
@@ -103,47 +103,7 @@ function main() {
     camera.speed = player.speed;
   });
 
-  canvas.addEventListener("click", event => {
-    if (!DEBUG) {
-      return;
-    }
-
-    const position = {
-      x: Math.floor((event.offsetX + camera.position.x) / mapData.tileSize + camera.position.x),
-      y: Math.floor((event.offsetY + camera.position.y) / mapData.tileSize + camera.position.y),
-    };
-
-    const enemyFoundedIndex = enemies.findIndex(enemy => enemy.position.x === position.x && enemy.position.y === position.y);
-
-    if (enemyFoundedIndex !== OUTBOUNDED_INDEX) {
-      enemies.splice(0, 1);
-      return;
-    }
-
-    const mapTile = mapData.map?.[position.y]?.[position.x];
-
-    if (mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX]?.type === TileTypeEnum.WALL) {
-      return;
-    }
-
-    const enemy: Entity = {
-      id: 1, // TODO: make ID dynamic
-      viewDistance: 4,
-      color: "RED",
-      position,
-      body: { x: position.x, y: position.y },
-      direction: { x: 0, y: 0, },
-      speed: defaultPlayerSpeed,
-      facing: CompassEnum.SOUTH,
-      memory: 5000,
-      sprite: {
-        spriteSheet: gameSprites,
-        position: { x: 0, y: 1 }
-      }
-    };
-
-    enemies.push(enemy);
-  });
+  canvas.addEventListener("click", addEnemyBasedOnMousePosition(camera, mapData, enemies, defaultPlayerSpeed, gameSprites, DEBUG));
 
   initPlayer(player, mapData, gameSprites);
   setupKeyEvents(player, directionalInputs, controlInputs);
@@ -176,7 +136,8 @@ function gameLoop(
       moveEntity(player, mapData, directionalInputs, controlInputs, dt);
     }
     moveCamera(player, camera, mapData, directionalInputs, canvas, dt);
-    moveEnemies(mapData, enemies, dt);
+    //moveEnemiesIntoRandomPosition(mapData, enemies, dt);
+    moveEnemiesUsingManhattanAlgo(player, mapData, enemies, dt);
 
     if (DEBUG) {
       updateMapWithoutFog(mapData, camera, canvas);
@@ -211,7 +172,65 @@ function gameLoop(
   }
 }
 
-function moveEnemies(mapData: MapData, enemies: Entity[], deltaTime: number): void {
+function moveEnemiesUsingManhattanAlgo(
+  player: Entity,
+  mapData: MapData,
+  enemies: Entity[],
+  deltaTime: number
+): void {
+  enemies.forEach(enemy => {
+    const shouldMove = enemy.direction.x === 0 && enemy.direction.y === 0;
+
+    let x = Math.sign(enemy.position.x - player.position.x) * -1;
+    let y = Math.sign(enemy.position.y - player.position.y) * -1;
+
+    let mapTile = mapData.map?.[enemy.position.y + y]?.[enemy.position.x + x];
+    let tileData = mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX];
+
+    if (tileData?.type === TileTypeEnum.WALL) {
+      let mapTile = mapData.map?.[enemy.position.y + y]?.[enemy.position.x];
+      let tileData = mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX];
+
+      if (tileData?.type === TileTypeEnum.WALL) {
+        y = 0;
+      } else {
+        x = 0;
+      }
+    }
+
+    if (x === 0 && y === 0) {
+      y = 1;
+    } else if (Math.abs(x) === Math.abs(y)) {
+      y = 0;
+    }
+
+    mapTile = mapData.map?.[enemy.position.y + y]?.[enemy.position.x + x];
+    tileData = mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX];
+
+    if (tileData?.type === TileTypeEnum.WALL) {
+      const directionIndex = compass[rand(0, Object.values(normalizedDirection).length)];
+      const direction = normalizedDirection[directionIndex ?? CompassEnum.NORTH];
+      x = direction.x;
+      y = direction.y;
+    }
+
+    const control: DirectionKeyboardInput[] = !shouldMove ? [] : [{
+      id: 'rand',
+      direction: { x, y },
+      type: KeyboardInputTypeEnum.DIRECTIONAL
+    }];
+
+    moveEntity(
+      enemy,
+      mapData,
+      control,
+      [],
+      deltaTime
+    );
+  });
+}
+
+function moveEnemiesIntoRandomPosition(mapData: MapData, enemies: Entity[], deltaTime: number): void {
   enemies.forEach(enemy => {
     const shouldMove = enemy.direction.x === 0 && enemy.direction.y === 0;
     const directionIndex = compass[rand(0, Object.values(normalizedDirection).length)];

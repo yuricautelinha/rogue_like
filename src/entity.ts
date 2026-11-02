@@ -1,5 +1,5 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type Entity, type Camera, type MapData, TileTypeEnum, type DirectionKeyboardInput, directionToCompassMap, type KeyboardInput, KeyboardInputTypeEnum } from "./models.js";
+import { type Entity, type Camera, type MapData, TileTypeEnum, type DirectionKeyboardInput, directionToCompassMap, type KeyboardInput, KeyboardInputTypeEnum, type SpriteSheet, CompassEnum } from "./models.js";
 
 export function drawEntity(
   entity: Entity,
@@ -128,5 +128,56 @@ export function moveEntity(
   } else {
     entity.direction.x = 0;
     entity.direction.y = 0;
+  }
+}
+
+export function addEnemyBasedOnMousePosition(
+  camera: Camera,
+  mapData: MapData,
+  enemies: Entity[],
+  defaultPlayerSpeed: number,
+  gameSprites: SpriteSheet,
+  debug = false
+) {
+  return (event: MouseEvent) => {
+    if (!debug) {
+      return;
+    }
+
+    const position = {
+      x: Math.floor((event.offsetX + camera.position.x) / mapData.tileSize + camera.position.x),
+      y: Math.floor((event.offsetY + camera.position.y) / mapData.tileSize + camera.position.y),
+    };
+
+    const enemyFoundedIndex = enemies.findIndex(enemy => enemy.position.x === position.x && enemy.position.y === position.y);
+
+    if (enemyFoundedIndex !== OUTBOUNDED_INDEX) {
+      enemies.splice(0, 1);
+      return;
+    }
+
+    const mapTile = mapData.map?.[position.y]?.[position.x];
+
+    if (mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX]?.type === TileTypeEnum.WALL) {
+      return;
+    }
+
+    const enemy: Entity = {
+      id: 1, // TODO: make ID dynamic
+      viewDistance: 4,
+      color: "RED",
+      position,
+      body: { x: position.x, y: position.y },
+      direction: { x: 0, y: 0, },
+      speed: defaultPlayerSpeed,
+      facing: CompassEnum.SOUTH,
+      memory: 5000,
+      sprite: {
+        spriteSheet: gameSprites,
+        position: { x: 0, y: 1 }
+      }
+    };
+
+    enemies.push(enemy);
   }
 }
