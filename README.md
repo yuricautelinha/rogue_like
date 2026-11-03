@@ -8,7 +8,7 @@ A simple rogue like game maded entire in typescript.
 
 * A way out of the cave
 * Enemies system
-    * Enemy view system
+    * Enemy view system (Partially done. The enemies still have some struggles that I dont know if worth fix it. It cause some immersion the way it is righ now)
 * Other objects in game
 * Inventory system
 * Loot system loop
