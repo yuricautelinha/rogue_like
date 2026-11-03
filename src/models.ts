@@ -74,6 +74,7 @@ export const directionToCompassMap: Record<string, CompassEnum> = {
 
 export type Entity = {
   id: number;
+  isAlive: boolean;
   color: string;
   position: Vector2;
   direction: Vector2;
@@ -84,6 +85,13 @@ export type Entity = {
   memory: number;
   sprite?: Sprite;
 };
+
+export type NpcEntity = Entity & {
+  isGoingTo: Vector2 | undefined;
+  memoryDate: number | undefined;
+}
+
+export type NpcStorage = Record<string, NpcEntity[]>;
 
 export type SpriteSheet = {
   sprites: HTMLImageElement;

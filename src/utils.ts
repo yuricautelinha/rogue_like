@@ -1,4 +1,5 @@
-import type { Camera, MapData, Entity, RGE_Canvas } from "./models.js";
+import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE } from "./constants.js";
+import type { Camera, MapData, Entity, RGE_Canvas, NpcStorage } from "./models.js";
 
 export function loadCanvas(elementId: string): RGE_Canvas {
   const canvas = document.getElementById(elementId);
@@ -89,7 +90,7 @@ export function saveMapToLocalStorage(mapData: MapData) {
   localStorage.setItem('map', JSON.stringify(mapData));
 }
 
-export function loadMapFromLocalStorage(player: Entity, mapData: MapData) {
+export function loadMapFromLocalStorage(player: Entity, enemiesStorage: NpcStorage, mapData: MapData) {
   const mapString = localStorage.getItem('map');
 
   if (!mapString) {
@@ -111,6 +112,13 @@ export function loadMapFromLocalStorage(player: Entity, mapData: MapData) {
     player.position.y = newMapData.spawnPosition.y;
     player.body.x = player.position.x;
     player.body.y = player.position.y;
+
+    player.memory = DEFAULT_PLAYER_MEMORY;
+    player.viewDistance = DEFAULT_PLAYER_VIEW_DISTANCE;
+    player.speed = DEFAULT_PLAYER_SPEED;
+    player.isAlive = true;
+
+    Object.values(enemiesStorage).forEach(enemies => enemies.splice(0, enemies.length));
   } catch (error) {
     console.error("Map corrupted. Could not parse it.");
     return;

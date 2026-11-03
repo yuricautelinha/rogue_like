@@ -8,42 +8,69 @@
         background: #888;
       }
 
-      canvas {
+      canvas#game {
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
         image-rendering: pixelated;
+        z-index: 1;
+      }
+      canvas#mini-map {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        image-rendering: pixelated;
+        z-index: 2;
       }
 
       img {
         display: none;
       }
 
+      #debug-controls {
+        background: #000;
+        padding: 10px;
+        position: absolute;
+        z-index: 3;
+        text-align: right;
+        right: 10px;
+        top: 10px;
+        opacity: .2;
+      }
+      #debug-controls:hover {
+        opacity: 1;
+      }
+
       #buttons-control, #player-control {
-        text-align: center;
       }
     </style>
   </head>
   <body>
     <img id="game-sprites" src="./assets/game-sprites.png" />
-    <canvas id="game"></canvas>
-    <div id="buttons-control">
-      <button id="save-map-button" type="button">Save map</button>
-      <button id="load-map-button" type="button">Load saved map</button>
-      <button id="debug-button" type="button">Debug mode</button>
-      <button id="freelook-button" type="button">Freelook mode</button>
+    <div id="game-stage">
+      <canvas id="game"></canvas>
+      <canvas id="mini-map"></canvas>
     </div>
-    <div id="player-control">
-      <div>
-        <input id="player-speed" type="number" min="0" value="10" />
-        <button id="set-player-speed-button">Set player speed</button>
-        <button id="set-player-speed-to-default-button">Set player speed to default</button>
+    <div id="debug-controls">
+      <div id="buttons-control">
+        <button id="save-map-button" type="button">Save map</button>
+        <button id="load-map-button" type="button">Load saved map</button>
+        <button id="generate-map-button" type="button">Generate new map</button>
+        <button id="debug-button" type="button">Debug mode</button>
+        <button id="freelook-button" type="button">Freelook mode</button>
       </div>
-      <div>
-        <input id="player-view-distance" type="number" min="0" step="1" value="10" />
-        <button id="set-player-view-distance-button">Set player view distance</button>
-        <button id="set-player-view-distance-to-default-button">Set player view distance to default</button>
+      <div id="player-control">
+        <div>
+          <input id="player-speed" type="number" min="0" value="10" />
+          <button id="set-player-speed-button">Set player speed</button>
+          <button id="set-player-speed-to-default-button">Set player speed to default</button>
+        </div>
+        <div>
+          <input id="player-view-distance" type="number" min="0" step="1" value="10" />
+          <button id="set-player-view-distance-button">Set player view distance</button>
+          <button id="set-player-view-distance-to-default-button">Set player view distance to default</button>
+        </div>
       </div>
     </div>
     <script src="./dist/index.js" type="module"></script>
