@@ -2,6 +2,8 @@
 
 A simple rogue like game maded entire in typescript.
 
+![Game screenshot with debug enabled](https://github.com/yuricautelinha/rogue_like/blob/main/assets/game.jpg?raw=true)
+
 # Todo
 
 * A way out of the cave
