@@ -1,7 +1,7 @@
 import { moveCamera } from "./camera.js";
 import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, TILE_SIZE } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
-import { drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
+import { doMiniMap, drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
 import { type MapData, type Camera, type Entity, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum, type Vector2, type NpcStorage, type RGE_Canvas, type ObjectStorage, EntityEnum } from "./models.js";
 import { addEnemyBasedOnMousePosition, addObjectBasedOnMousePosition, drawEntitiesFromNpcStorage, drawEntitiesFromObjectStorage, drawEntity, getEntityStorageKey, moveEntity } from "./entity.js";
 import { clearCanvas, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage, sleep } from "./utils.js";
@@ -185,7 +185,7 @@ async function main() {
   });
 
 
-  //doMiniMap(player, miniMapData, miniMap);
+  doMiniMap(player, miniMapData, miniMap);
 
   initPlayer(player, mapData, gameSprites);
   setupKeyEvents(player, directionalInputs, controlInputs);
@@ -249,12 +249,12 @@ function gameLoop(
 
     const dt = (time - lastTime) / 1000;
 
-    // const enemyAbovePlayer = enemies[getNpcStorageKey(player.position)]?.[0];
-    // if (enemyAbovePlayer
-    //   && enemyAbovePlayer.body.x === player.position.x
-    //   && enemyAbovePlayer.body.y === player.position.y) {
-    //   player.isAlive = false;
-    // }
+    const enemyAbovePlayer = enemies[getEntityStorageKey(player.position)]?.[0];
+    if (enemyAbovePlayer
+      && enemyAbovePlayer.body.x === player.position.x
+      && enemyAbovePlayer.body.y === player.position.y) {
+      player.isAlive = false;
+    }
 
     if (player.isAlive && !camera.freelook) {
       moveEntity(player, mapData, directionalInputs, controlInputs, dt);

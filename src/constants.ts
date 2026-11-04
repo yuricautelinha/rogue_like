@@ -3,8 +3,8 @@ export const WIDTH = 16 * FACTOR;
 export const HEIGHT = 9 * FACTOR;
 
 export const TILE_SIZE = 64;
-export const MAP_TILES_WIDTH = 256;
-export const MAP_TILES_HEIGHT = 128;
+export const MAP_TILES_WIDTH = 64;
+export const MAP_TILES_HEIGHT = 64;
 
 export const OUTBOUNDED_INDEX = -1;
 
