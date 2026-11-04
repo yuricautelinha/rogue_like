@@ -1,5 +1,5 @@
 import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE } from "./constants.js";
-import type { Camera, MapData, Entity, RGE_Canvas, NpcStorage } from "./models.js";
+import type { Camera, MapData, Entity, RGE_Canvas, NpcStorage, Vector2 } from "./models.js";
 
 export function loadCanvas(elementId: string): RGE_Canvas {
   const canvas = document.getElementById(elementId);
@@ -79,6 +79,17 @@ export function drawGrid(
   }
   context.stroke();
 }
+
+export const vectorMagnitude = (vector2: Vector2): number =>
+  Math.sqrt(vector2.x * vector2.x + vector2.y * vector2.y);
+
+export const normalizeVector2 = (vector2: Vector2): Vector2 => {
+  const magnitude = vectorMagnitude(vector2);
+
+  if (magnitude === 0) return vector2;
+
+  return { x: vector2.x / magnitude, y: vector2.y / magnitude };
+};
 
 export const rand = (min: number = 0, max: number = 10): number =>
   Math.floor(Math.random() * (max - min + 1) + min);

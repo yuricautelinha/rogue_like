@@ -2,14 +2,15 @@ import { OUTBOUNDED_INDEX } from "./constants.js";
 import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, normalizedDirection, type Vector2 } from "./models.js";
 import { clearCanvas, rand, sleep } from "./utils.js";
 
+const camera: Camera = {
+  direction: { x: 0, y: 0 },
+  freelook: false,
+  position: { x: 0, y: 0 },
+  speed: 0,
+}
 export function doMiniMap(player: Entity, mapData: MapData, miniMap: RGE_Canvas) {
   clearCanvas("#000", miniMap);
-  drawMap({
-    direction: { x: 0, y: 0 },
-    freelook: false,
-    position: { x: 0, y: 0 },
-    speed: 0,
-  }, mapData, miniMap, false);
+  drawMap(camera, mapData, miniMap, false);
 
   miniMap.context.fillStyle = "RED";
   miniMap.context.fillRect(
@@ -120,7 +121,7 @@ export async function generateMap(mapData: MapData): Promise<MapData> {
   const { tilesData: tiles, map, width, height, mapSprite, spawnPosition } = mapData;
   const coverage = 20 + rand(0, 15);
 
-  let n = (width * height) * (coverage * 0.02);
+  let n = (width * height) * (coverage * 0.015);
   let x = 1 + rand(0, width - 2);
   let y = 1 + rand(0, height - 2);
 
@@ -173,7 +174,7 @@ export async function generateMap(mapData: MapData): Promise<MapData> {
       n--;
     }
 
-    if (Date.now() - time > 1000 * 60) {
+    if (Date.now() - time > 1000 * 2) {
       console.error("Expired time to generate map");
       break;
     }
@@ -224,10 +225,10 @@ export function updateMapFog(
       mapTile.revelead = mapTile.revelead || isGoingTo || isInFront;
 
       if (isGoingTo || isInFront) {
-        mapTile.reveleadDate = Date.now();
+        mapTile.reveleadTimestamp = Date.now();
       }
 
-      if (!mapTile.reveleadDate || (Date.now() - mapTile.reveleadDate) > player.memory) {
+      if (!mapTile.reveleadTimestamp || (Date.now() - mapTile.reveleadTimestamp) > player.memory) {
         mapTile.revelead = false;
       }
     }
@@ -235,8 +236,7 @@ export function updateMapFog(
 
   for (let y = -player.viewDistance; y < player.viewDistance + 1; ++y) {
     for (let x = -player.viewDistance; x < player.viewDistance + 1; ++x) {
-      const pd = normalizedDirection[player.facing];
-      const dot = pd.x * x + pd.y * y;
+      const dot = facing.x * x + facing.y * y;
 
       if (dot < 0) continue;
 
@@ -258,7 +258,72 @@ export function updateMapFog(
       if (hasLightOfSight) {
         mapTile.visible = true;
         mapTile.revelead = true;
-        mapTile.reveleadDate = Date.now();
+        mapTile.reveleadTimestamp = Date.now();
+      }
+    }
+  }
+}
+
+export function updateMapFogBasedOnObject(
+  player: Entity,
+  object: Entity,
+  mapData: MapData,
+) {
+  const { map } = mapData;
+
+  const ox = object.position.x;
+  const oy = object.position.y;
+  const facing = normalizedDirection[player.facing];
+
+  for (let y = -object.viewDistance; y < object.viewDistance + 1; ++y) {
+    for (let x = -object.viewDistance; x < object.viewDistance + 1; ++x) {
+      const mx = ox + x;
+      const my = oy + y;
+
+      const mapTile = map?.[my]?.[mx];
+
+      if (!mapTile || mapTile.visible) {
+        continue;
+      }
+
+      const tileToLight: Vector2 = {
+        x: player.position.x - mx,
+        y: player.position.y - my
+      };
+
+      const isAheadPlayer = (facing.x * tileToLight.x + facing.y * tileToLight.y) <= 0;
+
+      if (!isAheadPlayer) {
+        continue;
+      }
+
+      const hasLightOfSight = validateLineOfSight(
+        mapData,
+        object.position,
+        { x: mx, y: my }
+      ) && validateLineOfSight(
+        mapData,
+        { x: mx, y: my },
+        player.position
+      );
+
+      if (hasLightOfSight) {
+        mapTile.visible = true;
+        mapTile.revelead = true;
+        mapTile.reveleadTimestamp = Date.now();
+
+        if (x === -object.viewDistance) {
+          mapTile.visible = false;
+        }
+        else if (x === object.viewDistance) {
+          mapTile.visible = false;
+        }
+        else if (y === -object.viewDistance) {
+          mapTile.visible = false;
+        }
+        else if (y === object.viewDistance) {
+          mapTile.visible = false;
+        }
       }
     }
   }
@@ -291,6 +356,9 @@ export function updateMapWithoutFog(
   }
 }
 
+/**
+ * All credit of this function to https://parallelrealities.co.uk/
+ */
 export function validateLineOfSight(
   { map, tilesData }: MapData,
   p1: Vector2,
@@ -334,6 +402,53 @@ export function validateLineOfSight(
   }
 }
 
+export function getLineOfSightPath(
+  { map, tilesData }: MapData,
+  p1: Vector2,
+  p2: Vector2
+): Vector2[] {
+  let x = p1.x;
+  let y = p1.y;
+
+  const dx = Math.abs(p2.x - x);
+  const dy = Math.abs(p2.y - y);
+
+  const sx = (x < p2.x) ? 1 : -1;
+  const sy = (y < p2.y) ? 1 : -1;
+
+  let err = dx - dy;
+
+  const path: Vector2[] = [];
+
+  while (true) {
+    const e2 = 2 * err;
+
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+
+    path.push({ x, y });
+
+    if (x === p2.x && y === p2.y) {
+      return path;
+    }
+
+    const mapTile = map?.[y]?.[x];
+
+    const tile = tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX];
+
+    if (tile?.type === TileTypeEnum.WALL) {
+      return [];
+    }
+  }
+}
+
 const wallTileMapData = (
   index: number,
   mapSprite: MapSprite
@@ -364,4 +479,5 @@ const wallTileMap = (mapSprite: MapSprite): TileMap => ({
   tileMapDataId: mapSprite.wallOffset - 1 + rand(0, mapSprite.tileTypeSpriteCount - 1),
   revelead: false,
   visible: false,
+  reveleadTimestamp: null,
 });

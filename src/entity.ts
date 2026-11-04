@@ -1,5 +1,6 @@
-import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type Entity, type Camera, type MapData, TileTypeEnum, type DirectionKeyboardInput, directionToCompassMap, type KeyboardInput, KeyboardInputTypeEnum, type SpriteSheet, CompassEnum, type NpcEntity, type NpcStorage, type Vector2 } from "./models.js";
+import { DEFAULT_FIRE_DURATION, DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_VIEW_DISTANCE, OUTBOUNDED_INDEX } from "./constants.js";
+import { type Entity, type Camera, type MapData, TileTypeEnum, type DirectionKeyboardInput, directionToCompassMap, type KeyboardInput, KeyboardInputTypeEnum, type SpriteSheet, CompassEnum, type NpcEntity, type NpcStorage, type Vector2, type ObjectStorage, EntityEnum } from "./models.js";
+import { normalizeVector2 } from "./utils.js";
 
 export function drawEntity(
   entity: Entity,
@@ -34,12 +35,12 @@ export function drawEntity(
   }
 
   if (!entity.sprite) {
-    throw new Error("Player has no sprite");
+    throw new Error("Entity has no sprite");
   }
 
   context.drawImage(
     entity.sprite.spriteSheet.sprites,
-    (entity.sprite.position.x + entity.facing) * entity.sprite.spriteSheet.tileSize,
+    (entity.sprite.position.x + (entity.facing % 4)) * entity.sprite.spriteSheet.tileSize,
     entity.sprite.position.y * entity.sprite.spriteSheet.tileSize,
     entity.sprite.spriteSheet.tileSize,
     entity.sprite.spriteSheet.tileSize,
@@ -50,13 +51,13 @@ export function drawEntity(
   );
 
   if (debug) {
-    // context.font = "50px serif";
-    // context.fillStyle = "RED";
-    // context.fillText(entity.id.toString(), x, y);
+    context.font = "20px serif";
+    context.fillStyle = "RED";
+    context.fillText(entity.id.toString(), x, y);
   }
 }
 
-export function drawEntities(
+export function drawEntitiesFromNpcStorage(
   camera: Camera,
   mapData: MapData,
   player: Entity,
@@ -80,24 +81,69 @@ export function drawEntities(
 
       const mapTile = mapData.map?.[enemy.position.y]?.[enemy.position.x];
 
-      if (!mapTile?.visible) {
-        return;
+      if (mapTile?.visible) {
+        if (debug && enemy.pathToFollow.length > 0) {
+          enemy.pathToFollow.forEach(path => {
+            context.globalAlpha = .1;
+            context.fillStyle = "CYAN";
+            context.fillRect(
+              (path.x - camera.position.x) * mapData.tileSize,
+              (path.y - camera.position.y) * mapData.tileSize,
+              mapData.tileSize,
+              mapData.tileSize,
+            );
+            context.globalAlpha = 1;
+          });
+        }
+
+        drawEntity(enemy, camera, mapData, context, debug);
       }
 
-      drawEntity(enemy, camera, mapData, context, debug);
-
-      if (debug && enemy.isGoingTo !== undefined) {
-        // context.font = "40px serif";
-        // context.fillStyle = "WHITE";
-        // context.fillText(
-        //   `(${enemy.isGoingTo.x}, ${enemy.isGoingTo.y})`,
-        //   (enemy.position.x - camera.position.x) * mapData.tileSize,
-        //   (enemy.position.y + 1 - camera.position.y) * mapData.tileSize,
-        // );
+      if (enemy.message !== null) {
+        context.font = "25px serif";
+        context.fillStyle = "ORANGE";
+        context.fillText(
+          enemy.message.text,
+          (enemy.message.position.x - camera.position.x) * mapData.tileSize,
+          (enemy.message.position.y - camera.position.y) * mapData.tileSize,
+        );
       }
     });
   });
 }
+
+export function drawEntitiesFromObjectStorage(
+  camera: Camera,
+  mapData: MapData,
+  player: Entity,
+  objcetStorage: ObjectStorage,
+  context: CanvasRenderingContext2D,
+  debug = false
+) {
+  Object.values(objcetStorage).forEach(objects => {
+    const object = objects[0];
+
+    if (!object) {
+      return;
+    }
+
+    const distanceFromPlayer = Math.abs(object.position.x - player.position.x) + Math.abs(object.position.y - player.position.y);
+
+    if (distanceFromPlayer > 20) {
+      return;
+    }
+
+    const mapTile = mapData.map?.[object.position.y]?.[object.position.x];
+
+    if (!mapTile?.visible) {
+      return;
+    }
+
+    drawEntity(object, camera, mapData, context, debug);
+  });
+}
+
+
 
 export function moveEntity(
   entity: Entity,
@@ -110,15 +156,16 @@ export function moveEntity(
 
   if (!entity.direction.x && !entity.direction.y) {
     if (inputDirection) {
-      entity.direction.x = inputDirection.direction.x;
-      entity.direction.y = inputDirection.direction.y;
+      entity.direction.x = entity.direction.x + inputDirection.direction.x;
+      entity.direction.y = entity.direction.y + inputDirection.direction.y;
+
     } else {
       return;
     }
   }
 
   if (inputDirection) {
-    entity.facing = directionToCompassMap[`(${entity.direction.x},${entity.direction.y})`] ?? entity.facing;
+    entity.facing = directionToCompassMap[`(${inputDirection.direction.x},${inputDirection.direction.y})`] ?? entity.facing;
   }
 
   if (controlInputs.find(control => control.type === KeyboardInputTypeEnum.IDLE)
@@ -134,11 +181,20 @@ export function moveEntity(
   const mapTile = mapData.map?.[y]?.[x];
   const tileData = mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX];
 
-  const speedModifier = controlInputs.find(control => control.type === KeyboardInputTypeEnum.RUN) ? 3 : 1;
+  let speedModifier = controlInputs.find(control => control.type === KeyboardInputTypeEnum.RUN) ? 1.6 : 1;
 
   if (tileData?.type === TileTypeEnum.GROUND) {
-    entity.body.x = entity.body.x + entity.direction.x * (entity.speed * speedModifier) * dt;
-    entity.body.y = entity.body.y + entity.direction.y * (entity.speed * speedModifier) * dt;
+    const normalizedDirection = normalizeVector2(entity.direction);
+
+    if (
+      inputDirection
+      && (entity.direction.x !== inputDirection.direction.x
+        || entity.direction.y !== inputDirection?.direction.y)) {
+      speedModifier = speedModifier - (speedModifier * .3);
+    }
+
+    entity.body.x = entity.body.x + normalizedDirection.x * (entity.speed * speedModifier) * dt;
+    entity.body.y = entity.body.y + normalizedDirection.y * (entity.speed * speedModifier) * dt;
 
     if (entity.body.x >= x && entity.direction.x > 0
       || entity.body.x <= x && entity.direction.x < 0
@@ -162,7 +218,7 @@ export function addEnemyBasedOnMousePosition(
   camera: Camera,
   mapData: MapData,
   enemies: NpcStorage,
-  defaultPlayerSpeed: number,
+  enemySpeed: number,
   gameSprites: SpriteSheet,
   count = 1,
   debug = false
@@ -177,7 +233,7 @@ export function addEnemyBasedOnMousePosition(
       y: Math.floor(event.offsetY / mapData.tileSize + camera.position.y),
     };
 
-    const storageKey = getNpcStorageKey(position);
+    const storageKey = getEntityStorageKey(position);
 
     if (enemies[storageKey] !== undefined && enemies[storageKey]?.length > 0) {
       enemies[storageKey].splice(0, 1);
@@ -190,24 +246,26 @@ export function addEnemyBasedOnMousePosition(
       return;
     }
 
-    const generatedEnemies = new Array(count).fill(null).map((_, id) => {
+    const generatedEnemies = new Array(count).fill(null).map(() => {
       const enemy: NpcEntity = {
-        id, // TODO: make ID dynamic
+        id: EntityEnum.GOBLIN,
         isAlive: true,
-        viewDistance: 4,
+        viewDistance: DEFAULT_PLAYER_VIEW_DISTANCE,
         color: "RED",
         position: { x: position.x, y: position.y },
         body: { x: position.x, y: position.y },
         direction: { x: 0, y: 0, },
-        speed: defaultPlayerSpeed,
+        speed: enemySpeed,
         facing: CompassEnum.SOUTH,
-        memory: 5000,
+        memory: DEFAULT_PLAYER_MEMORY,
         sprite: {
           spriteSheet: gameSprites,
           position: { x: 0, y: 1 }
         },
-        isGoingTo: undefined,
-        memoryDate: undefined
+        pathToFollow: [],
+        memoryTimestamp: null,
+        message: null,
+        spawnTimestamp: Date.now()
       };
       return enemy;
     });
@@ -216,4 +274,69 @@ export function addEnemyBasedOnMousePosition(
   }
 }
 
-export const getNpcStorageKey = (position: Vector2) => `${position.x}${position.y}`;
+export function addObjectBasedOnMousePosition(
+  camera: Camera,
+  mapData: MapData,
+  objects: ObjectStorage,
+  gameSprites: SpriteSheet,
+  debug = false
+) {
+  return (event: MouseEvent) => {
+    const position = {
+      x: Math.floor(event.offsetX / mapData.tileSize + camera.position.x),
+      y: Math.floor(event.offsetY / mapData.tileSize + camera.position.y),
+    };
+
+    const storageKey = getEntityStorageKey(position);
+
+    if (!debug && objects[storageKey] !== undefined && objects[storageKey]?.length > 0) {
+      const obj = objects[storageKey][0];
+      if (obj?.id === EntityEnum.FIREPLACE) {
+        if (obj.isAlive) {
+          obj.isAlive = false;
+          obj.facing = CompassEnum.EAST;
+        } else {
+          obj.isAlive = true;
+          obj.facing = CompassEnum.NORTH;
+          obj.spawnTimestamp = Date.now();
+        }
+      }
+
+      return;
+    }
+
+
+    if (objects[storageKey] !== undefined && objects[storageKey]?.length > 0) {
+      objects[storageKey].splice(0, 1);
+      return;
+    }
+
+    const mapTile = mapData.map?.[position.y]?.[position.x];
+
+    if (mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX]?.type === TileTypeEnum.WALL) {
+      return;
+    }
+
+    const object: Entity = {
+      id: EntityEnum.FIREPLACE,
+      isAlive: true,
+      viewDistance: DEFAULT_PLAYER_VIEW_DISTANCE,
+      color: "BLUE",
+      position: { x: position.x, y: position.y },
+      body: { x: position.x, y: position.y },
+      direction: { x: 0, y: 0, },
+      speed: 0,
+      facing: CompassEnum.NORTH,
+      memory: DEFAULT_FIRE_DURATION,
+      sprite: {
+        spriteSheet: gameSprites,
+        position: { x: 0, y: 2 }
+      },
+      spawnTimestamp: Date.now()
+    };
+
+    objects[storageKey] = [object];
+  }
+}
+
+export const getEntityStorageKey = (position: Vector2) => `${position.x}${position.y}`;

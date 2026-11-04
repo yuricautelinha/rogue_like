@@ -6,6 +6,7 @@
     <style>
       body {
         background: #888;
+        color: #FFF;
       }
 
       canvas#game {
@@ -70,6 +71,12 @@
           <input id="player-view-distance" type="number" min="0" step="1" value="10" />
           <button id="set-player-view-distance-button">Set player view distance</button>
           <button id="set-player-view-distance-to-default-button">Set player view distance to default</button>
+        </div>
+        <div>
+          <label for="enemy">Enemy</label>
+          <input type="radio" id="enemy" name="placement" value="enemy" checked />
+          <label for="fireplace">Fireplace</label>
+          <input type="radio" id="fireplace" name="placement" value="fireplace" />
         </div>
       </div>
     </div>

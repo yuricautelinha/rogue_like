@@ -6,6 +6,10 @@ const directionalKeyToCompassEnum: Record<string, CompassEnum> = {
   s: CompassEnum.SOUTH,
   a: CompassEnum.WEST,
   d: CompassEnum.EAST,
+  q: CompassEnum.NORTH_EAST,
+  e: CompassEnum.NORTH_WEST,
+  z: CompassEnum.SOUTH_EAST,
+  c: CompassEnum.SOUTH_WEST,
 };
 
 export function setupKeyEvents(
@@ -26,6 +30,10 @@ export function setupKeyEvents(
       case ('s'):
       case ('a'):
       case ('d'):
+      case ('q'):
+      case ('e'):
+      case ('z'):
+      case ('c'):
         const compassDirection = directionalKeyToCompassEnum[event.key];
 
         if (compassDirection === undefined) {
@@ -73,6 +81,10 @@ export function setupKeyEvents(
       case ('s'):
       case ('a'):
       case ('d'):
+      case ('q'):
+      case ('e'):
+      case ('z'):
+      case ('c'):
         const compassDirection = directionalKeyToCompassEnum[event.key];
 
         if (compassDirection === undefined) {
@@ -108,7 +120,7 @@ export function addDirectionKeyboardInput(
   const index = inputs.findIndex(playerInput => playerInput.id === input.id);
 
   if (index === OUTBOUNDED_INDEX) {
-    inputs.unshift(input);
+    inputs.push(input);
   }
 }
 
@@ -132,7 +144,7 @@ export function addControlKeyboardInput(
   const index = inputs.findIndex(playerInput => playerInput.id === input.id);
 
   if (index === OUTBOUNDED_INDEX) {
-    inputs.unshift(input);
+    inputs.push(input);
   }
 }
 
