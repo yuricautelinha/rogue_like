@@ -1,11 +1,10 @@
 import { moveCamera } from "./camera.js";
-import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, TILE_SIZE } from "./constants.js";
+import { creatureMessages, DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, TILE_SIZE } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
-import { drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
-import { type MapData, type Camera, type Entity, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum, type Vector2, type NpcStorage, type RGE_Canvas, type ObjectStorage, EntityEnum } from "./models.js";
-import { addEnemyBasedOnMousePosition, addObjectBasedOnMousePosition, drawEntitiesFromNpcStorage, drawEntitiesFromObjectStorage, drawEntity, getEntityStorageKey, moveEntity } from "./entity.js";
-import { clearCanvas, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage, sleep } from "./utils.js";
-import { initPlayer } from "./player.js";
+import { drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapWithoutFog } from "./map.js";
+import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, EntityTypeEnum, type EntityStorage, type SpatialIndex, type Player, type Torch, isEntityBeignThatMoves, isEntityBeignThaFollowsAPath, isEntityThatEmitsTextSentence } from "./models.js";
+import { addEntity, drawEntities, getPlayerEntity, getSpatialIndexSetByPosition, moveEntity } from "./entity.js";
+import { clearCanvas, loadCanvas, loadImage, rand, sleep } from "./utils.js";
 
 let DEBUG = true;
 let PAUSED = false;
@@ -26,50 +25,9 @@ async function main() {
 
   context.imageSmoothingEnabled = false;
 
-  const directionalInputs: DirectionKeyboardInput[] = [];
-  const controlInputs: KeyboardInput[] = [];
-
   const gameSprites: SpriteSheet = {
     sprites: loadImage("game-sprites"),
     tileSize: 32,
-  };
-
-  const player: Entity = {
-    id: EntityEnum.PLAYER,
-    isAlive: true,
-    viewDistance: 0,
-    color: "WHITE",
-    position: { x: 0, y: 0, },
-    body: { x: 0, y: 0, },
-    direction: { x: 0, y: 0, },
-    speed: DEFAULT_PLAYER_SPEED,
-    facing: CompassEnum.NORTH,
-    memory: DEFAULT_PLAYER_MEMORY,
-    spawnTimestamp: Date.now()
-  };
-
-  const enemies: NpcStorage = {};
-
-  const objects: ObjectStorage = {};
-
-  const playerObjectsStorage: ObjectStorage = {
-    0: [{
-      body: player.body,
-      position: player.position,
-      color: "",
-      direction: { x: 0, y: 0 },
-      facing: CompassEnum.NORTH,
-      id: EntityEnum.TORCH,
-      isAlive: true,
-      memory: 10000,
-      spawnTimestamp: Date.now(),
-      speed: 0,
-      viewDistance: 5,
-      sprite: {
-        spriteSheet: gameSprites,
-        position: { x: 0, y: 3 }
-      }
-    }]
   };
 
   const camera: Camera = {
@@ -89,94 +47,80 @@ async function main() {
   let mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
   const miniMapData: MapData = { ...mapData, tileSize: miniMap.canvas.width / MAP_TILES_WIDTH };
 
+  const player: Player = {
+    id: 0,
+    type: EntityTypeEnum.PLAYER,
+    isAlive: true,
+    memory: {
+      hasMemory: false,
+      initialTimestamp: 0,
+    },
+    viewDistance: 0,
+    color: "WHITE",
+    position: { x: mapData.spawnPosition.x, y: mapData.spawnPosition.y, },
+    bodyPosition: { x: mapData.spawnPosition.x, y: mapData.spawnPosition.y, },
+    direction: { x: 0, y: 0, },
+    speed: DEFAULT_PLAYER_SPEED,
+    facing: CompassEnum.NORTH,
+    memoryDuration: DEFAULT_PLAYER_MEMORY,
+    sprite: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 4, y: 1 }, { x: 5, y: 1 }, { x: 6, y: 1 }, { x: 7, y: 1 }]
+    }
+  };
+
+  const playerTorch: Torch = {
+    id: 1,
+    type: EntityTypeEnum.TORCH,
+    color: "ORANGE",
+    duration: 5000,
+    elapsedDuration: 0,
+    intensity: 3,
+    position: player.bodyPosition,
+    sprite: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 0, y: 3 }, { x: 1, y: 3 }]
+    }
+  };
+
+  const directionalInputs: DirectionKeyboardInput[] = [];
+  const controlInputs: KeyboardInput[] = [];
+  const entityStorage: EntityStorage = new Map();
+  const spatialIndex: SpatialIndex = new Map();
+
+  addEntity(player, spatialIndex, entityStorage);
+  addEntity(playerTorch, spatialIndex, entityStorage);
+
   // TODO: Should do this when update map
   miniMap.canvas.width = 300;
   miniMap.canvas.height = miniMapData.tileSize * MAP_TILES_HEIGHT;
 
-  loadButton("load-map-button").addEventListener("click", () => loadMapFromLocalStorage(player, enemies, mapData));
+  //debugButtons(player, enemies, camera, mapData, () => DEBUG = !DEBUG);
 
-  loadButton("save-map-button").addEventListener("click", () => saveMapToLocalStorage(mapData));
-
-  loadButton("generate-map-button").addEventListener("click", async () => {
-    mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
-
-    await sleep(1);
-
-    player.position.x = mapData.spawnPosition.x;
-    player.position.y = mapData.spawnPosition.y;
-    player.body.x = player.position.x;
-    player.body.y = player.position.y;
-
-    player.memory = DEFAULT_PLAYER_MEMORY;
-    player.viewDistance = DEFAULT_PLAYER_VIEW_DISTANCE;
-    player.speed = DEFAULT_PLAYER_SPEED;
-    player.isAlive = true;
-
-    Object.values(enemies).forEach(enemies => enemies.splice(0, enemies.length));
-  });
-
-  loadButton("debug-button").addEventListener("click", () => {
-    DEBUG = !DEBUG;
-  });
-
-  loadButton("freelook-button").addEventListener("click", () => {
-    camera.freelook = !camera.freelook;
-  });
-
-  loadButton("set-player-speed-to-default-button").addEventListener("click", () => {
-    player.speed = DEFAULT_PLAYER_SPEED;
-    camera.speed = player.speed;
-  });
-
-  loadButton("set-player-view-distance-to-default-button").addEventListener("click", () => {
-    player.viewDistance = DEFAULT_PLAYER_VIEW_DISTANCE;
-  });
-
-  loadButton("set-player-view-distance-button").addEventListener("click", () => {
-    const value = loadInput("player-view-distance").valueAsNumber;
-
-    if (Number.isNaN(value)) {
-      console.error("View distance value error", value);
-      return;
-    }
-
-    player.viewDistance = value;
-  });
-
-  loadButton("set-player-speed-button").addEventListener("click", () => {
-    const value = loadInput("player-speed").valueAsNumber;
-
-    if (Number.isNaN(value)) {
-      console.error("Speed value error", value);
-      return;
-    }
-
-    player.speed = value;
-    camera.speed = player.speed;
-  });
-
-  canvas.addEventListener("click", (event) => {
-    event.preventDefault();
-    if (loadInput("enemy").checked) {
-      addEnemyBasedOnMousePosition(
-        camera,
-        mapData,
-        enemies,
-        DEFAULT_PLAYER_SPEED,
-        gameSprites,
-        1,
-        DEBUG
-      )(event);
-    } else {
-      addObjectBasedOnMousePosition(
-        camera,
-        mapData,
-        objects,
-        gameSprites,
-        DEBUG
-      )(event);
-    }
-  });
+  // canvas.addEventListener("click", (event) => {
+  //   event.preventDefault();
+  //   if (loadInput("enemy").checked) {
+  //     addEnemyBasedOnMousePosition(
+  //       camera,
+  //       mapData,
+  //       enemies,
+  //       DEFAULT_PLAYER_SPEED,
+  //       gameSprites,
+  //       1,
+  //       DEBUG
+  //     )(event);
+  //   } else {
+  //     addObjectBasedOnMousePosition(
+  //       camera,
+  //       mapData,
+  //       objects,
+  //       gameSprites,
+  //       DEBUG
+  //     )(event);
+  //   }
+  // });
 
   window.addEventListener("keydown", (event) => {
     if (event.key === ' ') {
@@ -184,22 +128,18 @@ async function main() {
     }
   });
 
-
   //doMiniMap(player, miniMapData, miniMap);
 
-  initPlayer(player, mapData, gameSprites);
   setupKeyEvents(player, directionalInputs, controlInputs);
   requestAnimationFrame(
     gameLoop(
-      player,
       camera,
       directionalInputs,
       controlInputs,
       mapData,
       miniMapData,
-      enemies,
-      objects,
-      playerObjectsStorage,
+      entityStorage,
+      spatialIndex,
       rgeCanvas,
       miniMap,
       0
@@ -208,15 +148,13 @@ async function main() {
 };
 
 function gameLoop(
-  player: Entity,
   camera: Camera,
   directionalInputs: DirectionKeyboardInput[],
   controlInputs: KeyboardInput[],
   mapData: MapData,
   miniMapData: MapData,
-  enemies: NpcStorage,
-  objectStorage: ObjectStorage,
-  playerObjectsStorage: ObjectStorage,
+  entityStorage: EntityStorage,
+  spatialIndex: SpatialIndex,
   rgeCanvas: RGE_Canvas,
   miniMap: RGE_Canvas,
   lastTime: number
@@ -228,15 +166,13 @@ function gameLoop(
       sleep(1).then(() => {
         requestAnimationFrame(
           gameLoop(
-            player,
             camera,
             directionalInputs,
             controlInputs,
             mapData,
             miniMapData,
-            enemies,
-            objectStorage,
-            playerObjectsStorage,
+            entityStorage,
+            spatialIndex,
             rgeCanvas,
             miniMap,
             time
@@ -249,40 +185,23 @@ function gameLoop(
 
     const dt = (time - lastTime) / 1000;
 
-    // const enemyAbovePlayer = enemies[getNpcStorageKey(player.position)]?.[0];
-    // if (enemyAbovePlayer
-    //   && enemyAbovePlayer.body.x === player.position.x
-    //   && enemyAbovePlayer.body.y === player.position.y) {
-    //   player.isAlive = false;
-    // }
-
-    if (player.isAlive && !camera.freelook) {
-      moveEntity(player, mapData, directionalInputs, controlInputs, dt);
-    }
+    const player = getPlayerEntity(entityStorage);
 
     if (player.isAlive) {
       moveCamera(player, camera, mapData, directionalInputs, canvas, dt);
-      moveEnemiesUsingManhattanAlgo(player, mapData, enemies, dt);
-    }
-
-    if (DEBUG) {
-      updateMapWithoutFog(mapData, camera, canvas);
+      moveEntities(mapData, entityStorage, spatialIndex, directionalInputs, controlInputs, dt);
     } else {
-      updateMapFog(player, camera, mapData, canvas);
+      player.viewDistance = 0;
+      player.memoryDuration = 0;
     }
 
-    doObjects(player, objectStorage, mapData);
-    doObjects(player, playerObjectsStorage, mapData);
+    updateMapWithoutFog(mapData, camera, canvas);
 
     context.beginPath();
 
     clearCanvas("#000", rgeCanvas);
     drawMap(camera, mapData, rgeCanvas);
-    drawEntitiesFromObjectStorage(camera, mapData, player, objectStorage, context, DEBUG);
-    drawEntitiesFromNpcStorage(camera, mapData, player, enemies, context, DEBUG);
-    drawEntity(player, camera, mapData, context, DEBUG);
-    drawEntitiesFromObjectStorage(camera, mapData, player, playerObjectsStorage, context, DEBUG);
-
+    drawEntities(camera, mapData, entityStorage, spatialIndex, context, DEBUG);
 
     if (DEBUG) {
       // context.font = "40px bold sans-serif";
@@ -304,12 +223,6 @@ function gameLoop(
         canvas.width / 2 - measureMessage.width / 2,
         canvas.height / 2,
       );
-      player.viewDistance = 0;
-      player.memory = 0;
-    }
-
-    if (DEBUG) {
-      //drawGrid(TILE_SIZE, camera, rgeCanvas, "#FFFFFFAA");
     }
 
     context.closePath();
@@ -317,15 +230,13 @@ function gameLoop(
     sleep(1).then(() => {
       requestAnimationFrame(
         gameLoop(
-          player,
           camera,
           directionalInputs,
           controlInputs,
           mapData,
           miniMapData,
-          enemies,
-          objectStorage,
-          playerObjectsStorage,
+          entityStorage,
+          spatialIndex,
           rgeCanvas,
           miniMap,
           time
@@ -335,175 +246,192 @@ function gameLoop(
   }
 }
 
-function doObjects(player: Entity, objectsStorage: ObjectStorage, mapData: MapData) {
-  Object.values(objectsStorage).forEach(objects => {
-    const object = objects[0];
+// function doObjects(
+//   mapData: MapData
+//   entityStorage: EntityStorage,
+//   objectsStorage: ObjectStorage,
+// ) {
+//   Object.values(objectsStorage).forEach(objects => {
+//     const object = objects[0];
+//
+//     if (!object) {
+//       return;
+//     }
+//
+//     const distanceFromPlayer =
+//       Math.abs(object.position.x - player.position.x) + Math.abs(object.position.y - player.position.y);
+//
+//     if (distanceFromPlayer > 60) {
+//       return;
+//     }
+//
+//     if ((object.id === EntityTypeEnum.FIREPLACE || object.id === EntityTypeEnum.TORCH) && object.isAlive) {
+//       updateMapFogBasedOnObject(player, object, mapData);
+//
+//       const passed = Date.now() - object.spawnTimestamp;
+//       if (passed > object.memory) {
+//         object.isAlive = false;
+//         object.facing = CompassEnum.EAST
+//       }
+//     }
+//   });
+// }
 
-    if (!object) {
-      return;
-    }
-
-    const distanceFromPlayer =
-      Math.abs(object.position.x - player.position.x) + Math.abs(object.position.y - player.position.y);
-
-    if (distanceFromPlayer > 60) {
-      return;
-    }
-
-    if ((object.id === EntityEnum.FIREPLACE || object.id === EntityEnum.TORCH) && object.isAlive) {
-      updateMapFogBasedOnObject(player, object, mapData);
-
-      const passed = Date.now() - object.spawnTimestamp;
-      if (passed > object.memory) {
-        object.isAlive = false;
-        object.facing = CompassEnum.EAST
-      }
-    }
-  });
-}
-
-function moveEnemiesUsingManhattanAlgo(
-  player: Entity,
+function moveEntities(
   mapData: MapData,
-  enemiesStorage: NpcStorage,
+  entityStorage: EntityStorage,
+  spatialIndex: SpatialIndex,
+  playerDirectionalInputs: DirectionKeyboardInput[],
+  playerControlInputs: KeyboardInput[],
   deltaTime: number
 ): void {
-  Object.values(enemiesStorage).forEach(enemies => {
-    const enemy = enemies.splice(0, 1)[0];
+  const player = getPlayerEntity(entityStorage);
 
-    if (!enemy) {
+  spatialIndex.forEach(spatial => {
+    if (spatial.size === 0) {
       return;
     }
 
-    const distanceFromPlayer =
-      Math.abs(enemy.position.x - player.position.x) + Math.abs(enemy.position.y - player.position.y);
+    for (const entityId of spatial.values().take(2)) {
+      const entity = entityStorage.get(entityId);
 
-    if (distanceFromPlayer > 60) {
-      return;
-    }
-
-    const control: DirectionKeyboardInput[] = [];
-    const shouldMove = enemy.direction.x === 0 && enemy.direction.y === 0;
-
-    if (shouldMove) {
-      let newPathToFollow: Vector2[] = [];
-
-      const normalizedEnemyDirection = normalizedDirection[enemy.facing];
-
-      const enemyToPlayerVector: Vector2 = {
-        x: player.position.x - enemy.position.x,
-        y: player.position.y - enemy.position.y
-      };
-
-      const isPlayerAheadEnemy =
-        normalizedEnemyDirection.x * enemyToPlayerVector.x + normalizedEnemyDirection.y * enemyToPlayerVector.y >= 0;
-
-      if (enemy.memoryTimestamp !== null || isPlayerAheadEnemy) {
-        newPathToFollow = getLineOfSightPath(mapData, enemy.position, player.position);
+      if (entity === undefined) {
+        break;
       }
 
-      const hasLineOfSightToPlayer = newPathToFollow.length > 0;
-
-      if (Date.now() - (enemy?.memoryTimestamp ?? 0) > enemy.memory) {
-        enemy.pathToFollow = [];
-        enemy.memoryTimestamp = null;
+      if (entity.id === player.id) {
+        moveEntity(player, spatialIndex, mapData, playerDirectionalInputs, playerControlInputs, deltaTime);
+        continue;
       }
 
-      if (hasLineOfSightToPlayer) {
-        enemy.pathToFollow = newPathToFollow;
-        enemy.memoryTimestamp = Date.now();
-        enemy.color = "GREEN";
-      }
-      else {
-        enemy.color = enemy.memoryTimestamp === null ? "RED" : "BLUE";
+      // TODO: Loop until find someone that can walk?
+      if (!isEntityBeignThatMoves(entity) || !isEntityBeignThaFollowsAPath(entity)) {
+        continue;
       }
 
-      if (enemy.pathToFollow.length > 0) {
-        const nextPosition = enemy.pathToFollow.splice(0, 1)[0];
+      const distanceFromPlayer =
+        Math.abs(entity.position.x - player.position.x) + Math.abs(entity.position.y - player.position.y);
 
-        if (nextPosition !== undefined) {
-          const direction: Vector2 = {
-            x: nextPosition.x - enemy.position.x,
-            y: nextPosition.y - enemy.position.y,
-          };
+      if (distanceFromPlayer > 60) {
+        break;
+      }
 
-          if (!hasLineOfSightToPlayer) {
-            enemy.color = "PURPLE";
-          }
+      const control: DirectionKeyboardInput[] = [];
+      const shouldMove = entity.direction.x === 0 && entity.direction.y === 0;
 
-          const newKey = getEntityStorageKey({
-            x: enemy.position.x + direction.x,
-            y: enemy.position.y + direction.y
-          });
+      if (shouldMove) {
+        let newPathToFollow: Vector2[] = [];
 
-          if (enemiesStorage[newKey] === undefined || enemiesStorage[newKey].length === 0) {
-            control.push({
-              id: 'rand',
-              direction,
-              type: KeyboardInputTypeEnum.DIRECTIONAL
-            });
-          } else {
-            enemy.pathToFollow.unshift(nextPosition);
-          }
+        const normalizedentityDirection = normalizedDirection[entity.facing];
+
+        const entityToPlayerVector: Vector2 = {
+          x: player.position.x - entity.position.x,
+          y: player.position.y - entity.position.y
+        };
+
+        const isPlayerAheadPlayer =
+          normalizedentityDirection.x * entityToPlayerVector.x + normalizedentityDirection.y * entityToPlayerVector.y >= 0;
+
+        if (entity.memory.hasMemory || isPlayerAheadPlayer) {
+          newPathToFollow = getLineOfSightPath(mapData, entity.position, player.position);
         }
-      }
-      else {
-        if (enemy.memoryTimestamp === null) {
-          if (rand(0, 10000) < 15) {
-            enemy.memoryTimestamp = Date.now() + (enemy.memory * .2);
+
+        const hasLineOfSightToPlayer = newPathToFollow.length > 0;
+
+        if (Date.now() - entity.memory.initialTimestamp > entity.memoryDuration) {
+          entity.path = [];
+          entity.memory.hasMemory = false;
+        }
+
+        if (hasLineOfSightToPlayer) {
+          entity.path = newPathToFollow;
+          entity.memory.initialTimestamp = Date.now();
+          entity.memory.hasMemory = true;
+          entity.color = "GREEN";
+        }
+        else {
+          entity.color = entity.memory.hasMemory === null ? "RED" : "BLUE";
+        }
+
+        if (entity.path.length > 0) {
+          const nextPosition = entity.path.splice(0, 1)[0];
+
+          if (nextPosition !== undefined) {
+            const direction: Vector2 = {
+              x: nextPosition.x - entity.position.x,
+              y: nextPosition.y - entity.position.y,
+            };
+
+            if (!hasLineOfSightToPlayer) {
+              entity.color = "PURPLE";
+            }
+
+            const setFromThisPosition = getSpatialIndexSetByPosition({
+              x: entity.position.x + direction.x,
+              y: entity.position.y + direction.y
+            }, spatialIndex);
+
+            if (
+              setFromThisPosition === undefined
+              || setFromThisPosition.size === 0
+              || setFromThisPosition.has(player.id)) {
+              control.push({
+                id: 'rand',
+                direction,
+                type: KeyboardInputTypeEnum.DIRECTIONAL
+              });
+            } else {
+              entity.path.unshift(nextPosition);
+            }
           }
         }
         else {
-          const direction: Vector2 = computeRandomDirection();
-          const newKey = getEntityStorageKey({
-            x: enemy.position.x + direction.x,
-            y: enemy.position.y + direction.y
-          });
+          if (!entity.memory.hasMemory) {
+            if (rand(0, 10000) < 15) {
+              entity.memory.initialTimestamp = Date.now() + (entity.memoryDuration * .2);
+              entity.memory.hasMemory = true;
+            }
+          }
+          else {
+            const direction: Vector2 = computeRandomDirection();
+            const setFromThisPosition = getSpatialIndexSetByPosition({
+              x: entity.position.x + direction.x,
+              y: entity.position.y + direction.y
+            }, spatialIndex);
 
-          if (enemiesStorage[newKey] === undefined || enemiesStorage[newKey].length === 0) {
-            control.push({
-              id: 'rand',
-              direction,
-              type: KeyboardInputTypeEnum.DIRECTIONAL
-            });
+            if (
+              setFromThisPosition === undefined
+              || setFromThisPosition.size === 0
+              || setFromThisPosition.has(player.id)) {
+              control.push({
+                id: 'rand',
+                direction,
+                type: KeyboardInputTypeEnum.DIRECTIONAL
+              });
+            }
           }
         }
       }
-    }
 
-    moveEntity(
-      enemy,
-      mapData,
-      control,
-      [],
-      deltaTime
-    );
+      moveEntity(entity, spatialIndex, mapData, control, [], deltaTime);
 
-    const newKey = getEntityStorageKey({
-      x: enemy.position.x + enemy.direction.x,
-      y: enemy.position.y + enemy.direction.y
-    });
+      if (isEntityThatEmitsTextSentence(entity)) {
+        if (entity.message !== null
+            && Date.now() - entity.message.talkedTimestamp > entity.message.durationTimestamp) {
+          entity.message = null;
+        }
+        else if (rand(0, 10000) < 15) {
+          const text = creatureMessages[rand(0, creatureMessages.length - 1)];
 
-    if (enemiesStorage[newKey] === undefined) {
-      enemiesStorage[newKey] = [enemy];
-    } else {
-      enemiesStorage[newKey].unshift(enemy);
-    }
-
-    if (enemy.message !== null && Date.now() - enemy.message.talkedTimestamp > enemy.message.durationTimestamp) {
-      enemy.message = null;
-    }
-    else if (rand(0, 10000) < 15) {
-      const text = messages[rand(0, messages.length - 1)];
-
-      if (text) {
-        enemy.message = {
-          durationTimestamp: 5000,
-          id: 0,
-          position: { x: enemy.position.x, y: enemy.position.y },
-          talkedTimestamp: Date.now(),
-          text,
-          viewDistance: 5
+          if (text) {
+            entity.message = {
+              durationTimestamp: 5000,
+              id: 0,
+              position: { x: entity.position.x, y: entity.position.y },
+              talkedTimestamp: Date.now(),
+              text,
+            }
+          }
         }
       }
     }
@@ -515,69 +443,3 @@ function computeRandomDirection(): Vector2 {
   const directionIndex = compass[rand(0, Object.values(normalizedDirection).length)];
   return normalizedDirection[directionIndex ?? CompassEnum.NORTH];
 }
-
-const messages: string[] = [
-  //Hungry goblin
-  "Grrrr... human meat!",
-  "Flesh! FRESH FLESH!",
-  "Goblin hungry! You look tasty!",
-  "Me smell dinner!",
-  "Little human, big meal!",
-  "Crunchy bones! Yummy!",
-  "No run! Meat come back!",
-  "Goblin belly empty... YOU FILL!",
-  "Human smell like roasted pig!",
-  "Gimme leg! GIMME LEG!",
-  //Aggressive goblin,
-  "GRAAAH! KILL THE HUMAN!",
-  "You no belong here!",
-  "Goblin smash! Goblin smash!",
-  "I bash your skull!",
-  "You die now, pink-skin!",
-  "Get 'em! Get 'em!",
-  "Stabby stabby!",
-  "Me gonna wear your teeth!",
-  "Run while you still got legs!",
-  "Goblins eat good tonight!",
-  //Stupid / funny goblin,
-  "Huh? What that?",
-  "Me was here first!",
-  "Shiny! Is mine!",
-  "You smell funny!",
-  "Where my stick? WHO TOOK STICK?",
-  "Boss said no eat prisoners... boss not here!",
-  "Me smart goblin! Very smart!",
-  "Wait... which way we go?",
-  "That hurt! CHEATER!",
-  "Me no scared! ...Maybe little scared.",
-  //Greedy goblin,
-  "Gold! GOLD! MY GOLD!",
-  "Give shiny or lose fingers!",
-  "Mine! Mine! MINE!",
-  "You have coin? Me have knife!",
-  "Pretty necklace... now goblin necklace!",
-  "Nobody steals from goblin!",
-  "I saw it first!",
-  "More loot! MORE!",
-  //Combat / death screams,
-  "GRAAAAH!",
-  "Me gonna get you!",
-  "ARGH! Sneaky human!",
-  "No fair! Too many!",
-  "Goblin never surrender!",
-  "Me leg! ME LEG!",
-  "Boss... me sorry...",
-  "Tell tribe... me was brave...",
-  "Not... tasty... enough...",
-  //Short random idle dialogue,
-  "Hehehe...",
-  "Smell food?",
-  "Me hear something...",
-  "Who's there?",
-  "Stupid rocks...",
-  "Need bigger club.",
-  "Me hate rain.",
-  "Human nearby...",
-  "Goblin see you!",
-  "Sniff sniff... meat!",
-];

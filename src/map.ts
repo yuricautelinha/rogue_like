@@ -1,5 +1,5 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, normalizedDirection, type Vector2 } from "./models.js";
+import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, normalizedDirection, type Vector2, type Player, type BeignThatSees } from "./models.js";
 import { clearCanvas, rand, sleep } from "./utils.js";
 
 const camera: Camera = {
@@ -48,10 +48,10 @@ export function drawMap(
       if (useReveal) {
         context.drawImage(
           mapSprite.spriteSheet.sprites,
-          tileData.sprite.position.x * tileData.sprite.spriteSheet.tileSize,
-          tileData.sprite.position.y * tileData.sprite.spriteSheet.tileSize,
-          tileData.sprite.spriteSheet.tileSize,
-          tileData.sprite.spriteSheet.tileSize,
+          tileData.spritePosition.x * mapSprite.spriteSheet.tileSize,
+          tileData.spritePosition.y * mapSprite.spriteSheet.tileSize,
+          mapSprite.spriteSheet.tileSize,
+          mapSprite.spriteSheet.tileSize,
           (x - offsetX) * tileSize,
           (y - offsetY) * tileSize,
           tileSize,
@@ -191,7 +191,7 @@ export async function generateMap(mapData: MapData): Promise<MapData> {
 }
 
 export function updateMapFog(
-  player: Entity,
+  player: Player,
   camera: Camera,
   mapData: MapData,
   canvas: HTMLCanvasElement,
@@ -228,7 +228,7 @@ export function updateMapFog(
         mapTile.reveleadTimestamp = Date.now();
       }
 
-      if (!mapTile.reveleadTimestamp || (Date.now() - mapTile.reveleadTimestamp) > player.memory) {
+      if (!mapTile.reveleadTimestamp || (Date.now() - mapTile.reveleadTimestamp) > player.memoryDuration) {
         mapTile.revelead = false;
       }
     }
@@ -265,8 +265,8 @@ export function updateMapFog(
 }
 
 export function updateMapFogBasedOnObject(
-  player: Entity,
-  object: Entity,
+  player: Player,
+  object: Entity & BeignThatSees,
   mapData: MapData,
 ) {
   const { map } = mapData;
@@ -455,10 +455,7 @@ const wallTileMapData = (
 ): TileMapData => ({
   id: index,
   type: TileTypeEnum.WALL,
-  sprite: {
-    spriteSheet: mapSprite.spriteSheet,
-    position: { x: index + mapSprite.wallOffset, y: 0 }
-  },
+  spritePosition: { x: index + mapSprite.wallOffset, y: 0 },
   color: "#202020"
 });
 
@@ -468,10 +465,7 @@ const groundTileMapData = (
 ): TileMapData => ({
   id: index,
   type: TileTypeEnum.GROUND,
-  sprite: {
-    spriteSheet: mapSprite.spriteSheet,
-    position: { x: index + mapSprite.groundOffset, y: 0 }
-  },
+  spritePosition: { x: index + mapSprite.groundOffset, y: 0 },
   color: "GREEN"
 });
 

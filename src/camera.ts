@@ -1,7 +1,7 @@
-import type { Camera, MapData, Entity, DirectionKeyboardInput } from "./models.js";
+import type { Camera, MapData, DirectionKeyboardInput, Player } from "./models.js";
 
 export function moveCamera(
-  player: Entity,
+  player: Player,
   camera: Camera,
   mapData: MapData,
   directionalInputs: DirectionKeyboardInput[],
@@ -27,17 +27,17 @@ export function moveCamera(
     const tilesY = Math.floor(canvas.height / mapData.tileSize);
 
 
-    camera.position.x = Math.min(Math.max(player.body.x - tilesX / 2, 0), mapData.width - tilesX);
-    camera.position.y = Math.min(Math.max(player.body.y - tilesY / 2, 0), mapData.height - tilesY);
+    camera.position.x = Math.min(Math.max(player.bodyPosition.x - tilesX / 2, 0), mapData.width - tilesX);
+    camera.position.y = Math.min(Math.max(player.bodyPosition.y - tilesY / 2, 0), mapData.height - tilesY);
   }
 }
 
 export function centerCameraToPlayer(
-  player: Entity,
+  player: Player,
   camera: Camera,
   { tileSize }: MapData,
   canvas: HTMLCanvasElement
 ) {
-  camera.position.x = (player.body.x - canvas.width / 2) / tileSize;
-  camera.position.y = (player.body.y - canvas.height / 2) / tileSize;
+  camera.position.x = (player.bodyPosition.x - canvas.width / 2) / tileSize;
+  camera.position.y = (player.bodyPosition.y - canvas.height / 2) / tileSize;
 }

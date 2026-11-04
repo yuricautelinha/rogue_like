@@ -13,12 +13,10 @@ const directionalKeyToCompassEnum: Record<string, CompassEnum> = {
 };
 
 export function setupKeyEvents(
-  player: Entity,
+  _: Entity,
   directionalInputs: DirectionKeyboardInput[],
   controlInputs: KeyboardInput[]
 ): void {
-  let s = 0;
-
   window.addEventListener("blur", () => {
     directionalInputs.splice(0);
     controlInputs.splice(0);
@@ -59,18 +57,18 @@ export function setupKeyEvents(
         }, controlInputs);
         break;
       case ('g'):
-        if (player.sprite) {
-          switch ((s++) % 2) {
-            case (0):
-              player.sprite.position.x = 0;
-              player.sprite.position.y = 1;
-              break;
-            case (1):
-              player.sprite.position.x = 4;
-              player.sprite.position.y = 1;
-              break;
-          };
-        }
+        // if (player.sprite) {
+        //   switch ((s++) % 2) {
+        //     case (0):
+        //       player.sprite.position.x = 0;
+        //       player.sprite.position.y = 1;
+        //       break;
+        //     case (1):
+        //       player.sprite.position.x = 4;
+        //       player.sprite.position.y = 1;
+        //       break;
+        //   };
+        // }
         break;
     }
   });

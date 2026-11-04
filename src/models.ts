@@ -16,7 +16,7 @@ export enum TileTypeEnum {
 export type TileMapData = {
   id: number;
   type: TileTypeEnum;
-  sprite: Sprite;
+  spritePosition: Vector2,
   color: string;
 };
 
@@ -53,24 +53,24 @@ export type Camera = {
 
 export enum CompassEnum {
   NORTH,
-  EAST,
-  SOUTH,
-  WEST,
-  NORTH_EAST,
-  SOUTH_EAST,
   NORTH_WEST,
+  WEST,
   SOUTH_WEST,
+  SOUTH,
+  SOUTH_EAST,
+  EAST,
+  NORTH_EAST,
 };
 
 export const normalizedDirection: Record<CompassEnum, Vector2> = {
   [CompassEnum.NORTH]: { x: 0, y: -1 },
-  [CompassEnum.NORTH_EAST]: { x: -1, y: -1 },
   [CompassEnum.NORTH_WEST]: { x: 1, y: -1 },
+  [CompassEnum.WEST]: { x: -1, y: 0 },
+  [CompassEnum.SOUTH_WEST]: { x: 1, y: 1 },
   [CompassEnum.SOUTH]: { x: 0, y: 1 },
   [CompassEnum.SOUTH_EAST]: { x: -1, y: 1 },
-  [CompassEnum.SOUTH_WEST]: { x: 1, y: 1 },
-  [CompassEnum.WEST]: { x: -1, y: 0 },
   [CompassEnum.EAST]: { x: 1, y: 0 },
+  [CompassEnum.NORTH_EAST]: { x: -1, y: -1 },
 };
 
 export const directionToCompassMap: Record<string, CompassEnum> = {
@@ -84,47 +84,6 @@ export const directionToCompassMap: Record<string, CompassEnum> = {
   [`(-1,1)`]: CompassEnum.WEST,
 };
 
-export type Message = {
-  id: number;
-  viewDistance: number;
-  position: Vector2;
-  talkedTimestamp: number;
-  durationTimestamp: number;
-  text: string;
-};
-
-export enum EntityEnum {
-  PLAYER,
-  GOBLIN,
-  FIREPLACE,
-  TORCH
-};
-
-export type Entity = {
-  id: EntityEnum;
-  isAlive: boolean;
-  color: string;
-  position: Vector2;
-  direction: Vector2;
-  body: Vector2;
-  speed: number;
-  facing: CompassEnum;
-  viewDistance: number;
-  memory: number;
-  spawnTimestamp: number;
-  sprite?: Sprite;
-};
-
-export type NpcEntity = Entity & {
-  pathToFollow: Vector2[];
-  memoryTimestamp: number | null;
-  message: Message | null;
-}
-
-export type NpcStorage = Record<string, NpcEntity[]>;
-
-export type ObjectStorage = Record<string, Entity[]>;
-
 export type SpriteSheet = {
   sprites: HTMLImageElement;
   tileSize: number;
@@ -132,7 +91,8 @@ export type SpriteSheet = {
 
 export type Sprite = {
   spriteSheet: SpriteSheet;
-  position: Vector2;
+  current: number;
+  positions: Vector2[];
 };
 
 export enum KeyboardInputTypeEnum {
@@ -150,3 +110,124 @@ export type DirectionKeyboardInput = KeyboardInput & {
   type: KeyboardInputTypeEnum.DIRECTIONAL;
   direction: Vector2;
 };
+
+export type TextSentence = {
+  id: number;
+  position: Vector2;
+  talkedTimestamp: number;
+  durationTimestamp: number;
+  text: string;
+};
+
+export interface Memory {
+  initialTimestamp: number;
+  hasMemory: boolean;
+}
+
+export enum EntityTypeEnum {
+  PLAYER,
+  GOBLIN,
+  FIREPLACE,
+  TORCH
+};
+
+export type EntityId = number;
+
+export interface Entity {
+  id: EntityId;
+  type: EntityTypeEnum;
+  position: Vector2;
+  color: string;
+  sprite?: Sprite;
+};
+
+export interface LivingThing {
+  isAlive: boolean;
+}
+
+export interface BeignThatMoves {
+  bodyPosition: Vector2;
+  direction: Vector2;
+  speed: number;
+  facing: CompassEnum;
+}
+
+export interface BeignThatSees {
+  viewDistance: number;
+}
+
+export interface BeingThatMemorize {
+  memoryDuration: number;
+  memory: Memory;
+}
+
+export interface EmitsTextSentence {
+  message: TextSentence | null;
+}
+
+export interface EmitsLight {
+  intensity: number;
+  duration: number;
+  elapsedDuration: number;
+}
+
+export interface FollowsAPath {
+  path: Vector2[];
+}
+
+export type Player =
+  Entity
+  & { type: EntityTypeEnum.PLAYER }
+  & LivingThing
+  & BeignThatMoves
+  & BeingThatMemorize
+  & BeignThatSees;
+
+export type Goblin =
+  Entity
+  & { type: EntityTypeEnum.GOBLIN }
+  & LivingThing
+  & BeignThatMoves
+  & BeingThatMemorize
+  & EmitsTextSentence
+  & FollowsAPath;
+
+export type Fireplace =
+  Entity
+  & { type: EntityTypeEnum.FIREPLACE }
+  & EmitsLight;
+
+export type Torch =
+  Entity
+  & EmitsLight
+  & { type: EntityTypeEnum.TORCH };
+
+export type GameEntity = Player | Goblin | Fireplace | Torch
+
+export type EntityStorage = Map<EntityId, GameEntity>;
+
+export type SpatialIndex = Map<PositionKey, Set<EntityId>>
+
+export type PositionKey = string;
+
+export const isEntityBeignThatMoves = (entity: Entity): entity is Entity & BeignThatMoves =>
+  entitiesThatMove.has(entity.type);
+
+export const isEntityBeignThaFollowsAPath = (entity: Entity): entity is Entity & FollowsAPath =>
+  entitiesThatFollowsAPath.has(entity.type);
+
+export const isEntityThatEmitsTextSentence = (entity: Entity): entity is Entity & EmitsTextSentence =>
+  entitiesThatEmitsTextSentence.has(entity.type);
+
+const entitiesThatMove = new Set<EntityTypeEnum>([
+  EntityTypeEnum.PLAYER,
+  EntityTypeEnum.GOBLIN
+]);
+
+const entitiesThatFollowsAPath = new Set<EntityTypeEnum>([
+  EntityTypeEnum.GOBLIN
+]);
+
+const entitiesThatEmitsTextSentence = new Set<EntityTypeEnum>([
+  EntityTypeEnum.GOBLIN
+]);
