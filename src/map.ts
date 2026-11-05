@@ -121,7 +121,7 @@ export async function generateMap(mapData: MapData): Promise<MapData> {
   const { tilesData: tiles, map, width, height, mapSprite, spawnPosition } = mapData;
   const coverage = 20 + rand(0, 15);
 
-  let n = (width * height) * (coverage * 0.015);
+  let n = (width * height) * (coverage * 0.01);
   let x = 1 + rand(0, width - 2);
   let y = 1 + rand(0, height - 2);
 

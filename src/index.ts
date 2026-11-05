@@ -1,13 +1,15 @@
 import { moveCamera } from "./camera.js";
 import { creatureMessages, DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, TILE_SIZE } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
-import { drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapWithoutFog } from "./map.js";
-import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, EntityTypeEnum, type EntityStorage, type SpatialIndex, type Player, type Torch, isEntityBeignThatMoves, isEntityBeignThaFollowsAPath, isEntityThatEmitsTextSentence } from "./models.js";
-import { addEntity, drawEntities, getPlayerEntity, getSpatialIndexSetByPosition, moveEntity } from "./entity.js";
-import { clearCanvas, loadCanvas, loadImage, rand, sleep } from "./utils.js";
+import { drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapWithoutFog } from "./map.js";
+import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, EntityTypeEnum, type EntityStorage, type SpatialIndex, type Player, type Torch, isEntityBeignThatMoves, isEntityBeignThaFollowsAPath, isEntityThatEmitsTextSentence, type Goblin, compassArray, type Fireplace } from "./models.js";
+import { addEntity, addEntityBasedOnMousePosition, drawEntities, getPlayerEntity, getSpatialIndexSetByPosition, moveEntity } from "./entity.js";
+import { clearCanvas, loadCanvas, loadImage, loadInput, rand, sleep } from "./utils.js";
+import { debugButtons } from "./debug_controls.js";
 
 let DEBUG = true;
 let PAUSED = false;
+let idSeed = 0;
 window.addEventListener("load", main);
 
 async function main() {
@@ -46,9 +48,13 @@ async function main() {
 
   let mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
   const miniMapData: MapData = { ...mapData, tileSize: miniMap.canvas.width / MAP_TILES_WIDTH };
+  const directionalInputs: DirectionKeyboardInput[] = [];
+  const controlInputs: KeyboardInput[] = [];
+  const entityStorage: EntityStorage = new Map();
+  const spatialIndex: SpatialIndex = new Map();
 
   const player: Player = {
-    id: 0,
+    id: idSeed++,
     type: EntityTypeEnum.PLAYER,
     isAlive: true,
     memory: {
@@ -58,10 +64,11 @@ async function main() {
     viewDistance: 0,
     color: "WHITE",
     position: { x: mapData.spawnPosition.x, y: mapData.spawnPosition.y, },
+    facing: CompassEnum.NORTH,
     bodyPosition: { x: mapData.spawnPosition.x, y: mapData.spawnPosition.y, },
     direction: { x: 0, y: 0, },
+    directionalInputs: directionalInputs,
     speed: DEFAULT_PLAYER_SPEED,
-    facing: CompassEnum.NORTH,
     memoryDuration: DEFAULT_PLAYER_MEMORY,
     sprite: {
       spriteSheet: gameSprites,
@@ -71,24 +78,24 @@ async function main() {
   };
 
   const playerTorch: Torch = {
-    id: 1,
+    id: idSeed++,
     type: EntityTypeEnum.TORCH,
     color: "ORANGE",
     duration: 5000,
-    elapsedDuration: 0,
+    initialTimestamp: Date.now(),
     intensity: 3,
-    position: player.bodyPosition,
+    position: { x: mapData.spawnPosition.x, y: mapData.spawnPosition.y },
+    bodyPosition: { x: mapData.spawnPosition.x, y: mapData.spawnPosition.y, },
+    facing: CompassEnum.NORTH,
+    speed: DEFAULT_PLAYER_SPEED,
+    direction: { x: 0, y: 0 },
+    directionalInputs: player.directionalInputs,
     sprite: {
       spriteSheet: gameSprites,
       current: 0,
       positions: [{ x: 0, y: 3 }, { x: 1, y: 3 }]
     }
   };
-
-  const directionalInputs: DirectionKeyboardInput[] = [];
-  const controlInputs: KeyboardInput[] = [];
-  const entityStorage: EntityStorage = new Map();
-  const spatialIndex: SpatialIndex = new Map();
 
   addEntity(player, spatialIndex, entityStorage);
   addEntity(playerTorch, spatialIndex, entityStorage);
@@ -97,30 +104,53 @@ async function main() {
   miniMap.canvas.width = 300;
   miniMap.canvas.height = miniMapData.tileSize * MAP_TILES_HEIGHT;
 
-  //debugButtons(player, enemies, camera, mapData, () => DEBUG = !DEBUG);
+  debugButtons(camera, entityStorage, mapData, () => DEBUG = !DEBUG);
 
-  // canvas.addEventListener("click", (event) => {
-  //   event.preventDefault();
-  //   if (loadInput("enemy").checked) {
-  //     addEnemyBasedOnMousePosition(
-  //       camera,
-  //       mapData,
-  //       enemies,
-  //       DEFAULT_PLAYER_SPEED,
-  //       gameSprites,
-  //       1,
-  //       DEBUG
-  //     )(event);
-  //   } else {
-  //     addObjectBasedOnMousePosition(
-  //       camera,
-  //       mapData,
-  //       objects,
-  //       gameSprites,
-  //       DEBUG
-  //     )(event);
-  //   }
-  // });
+  canvas.addEventListener("click", (event) => {
+    const directionIndex = compassArray[rand(0, Object.values(normalizedDirection).length)] ?? CompassEnum.NORTH;
+
+    if (loadInput("enemy").checked) {
+      const goblin: Goblin = {
+        id: idSeed++,
+        bodyPosition: { x: 0, y: 0 },
+        color: "RED",
+        direction: { x: 0, y: 0 },
+        facing: directionIndex,
+        directionalInputs: [],
+        isAlive: true,
+        memory: { hasMemory: false, initialTimestamp: 0 },
+        memoryDuration: 5000,
+        message: null,
+        path: [],
+        position: { x: 0, y: 0 },
+        speed: 1.3,
+        type: EntityTypeEnum.GOBLIN,
+        sprite: {
+          spriteSheet: gameSprites,
+          current: directionIndex,
+          positions: [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }]
+        }
+      };
+      addEntityBasedOnMousePosition(camera, entityStorage, spatialIndex, goblin, mapData, 1, event, DEBUG);
+    } else {
+      const fireplace: Fireplace = {
+        id: idSeed++,
+        color: "ORANGE",
+        position: { x: 0, y: 0 },
+        type: EntityTypeEnum.FIREPLACE,
+        facing: directionIndex,
+        sprite: {
+          spriteSheet: gameSprites,
+          current: 0,
+          positions: [{ x: 0, y: 2 }, { x: 1, y: 2 }]
+        },
+        duration: 5000,
+        initialTimestamp: Date.now(),
+        intensity: 3
+      };
+      addEntityBasedOnMousePosition(camera, entityStorage, spatialIndex, fireplace, mapData, 1, event, DEBUG);
+    }
+  });
 
   window.addEventListener("keydown", (event) => {
     if (event.key === ' ') {
@@ -189,13 +219,17 @@ function gameLoop(
 
     if (player.isAlive) {
       moveCamera(player, camera, mapData, directionalInputs, canvas, dt);
-      moveEntities(mapData, entityStorage, spatialIndex, directionalInputs, controlInputs, dt);
+      moveEntities(mapData, entityStorage, spatialIndex, controlInputs, dt);
     } else {
       player.viewDistance = 0;
       player.memoryDuration = 0;
     }
 
-    updateMapWithoutFog(mapData, camera, canvas);
+    if (DEBUG) {
+      updateMapWithoutFog(mapData, camera, canvas);
+    } else {
+      updateMapFog(player, camera, mapData, canvas);
+    }
 
     context.beginPath();
 
@@ -281,7 +315,6 @@ function moveEntities(
   mapData: MapData,
   entityStorage: EntityStorage,
   spatialIndex: SpatialIndex,
-  playerDirectionalInputs: DirectionKeyboardInput[],
   playerControlInputs: KeyboardInput[],
   deltaTime: number
 ): void {
@@ -300,7 +333,14 @@ function moveEntities(
       }
 
       if (entity.id === player.id) {
-        moveEntity(player, spatialIndex, mapData, playerDirectionalInputs, playerControlInputs, deltaTime);
+        moveEntity(player, spatialIndex, mapData, playerControlInputs, deltaTime);
+        continue;
+      }
+
+      if (entity.id === 1 && isEntityBeignThatMoves(entity) && entity.sprite !== undefined) {
+        const currentSprite = entity.sprite.current;
+        moveEntity(entity, spatialIndex, mapData, playerControlInputs, deltaTime);
+        entity.sprite.current = currentSprite;
         continue;
       }
 
@@ -316,13 +356,11 @@ function moveEntities(
         break;
       }
 
-      const control: DirectionKeyboardInput[] = [];
       const shouldMove = entity.direction.x === 0 && entity.direction.y === 0;
+      entity.directionalInputs = [];
 
       if (shouldMove) {
         let newPathToFollow: Vector2[] = [];
-
-        const normalizedentityDirection = normalizedDirection[entity.facing];
 
         const entityToPlayerVector: Vector2 = {
           x: player.position.x - entity.position.x,
@@ -330,7 +368,7 @@ function moveEntities(
         };
 
         const isPlayerAheadPlayer =
-          normalizedentityDirection.x * entityToPlayerVector.x + normalizedentityDirection.y * entityToPlayerVector.y >= 0;
+          entity.direction.x * entityToPlayerVector.x + entity.direction.y * entityToPlayerVector.y >= 0;
 
         if (entity.memory.hasMemory || isPlayerAheadPlayer) {
           newPathToFollow = getLineOfSightPath(mapData, entity.position, player.position);
@@ -350,7 +388,7 @@ function moveEntities(
           entity.color = "GREEN";
         }
         else {
-          entity.color = entity.memory.hasMemory === null ? "RED" : "BLUE";
+          entity.color = entity.memory.hasMemory ? "BLUE" : "RED";
         }
 
         if (entity.path.length > 0) {
@@ -371,11 +409,8 @@ function moveEntities(
               y: entity.position.y + direction.y
             }, spatialIndex);
 
-            if (
-              setFromThisPosition === undefined
-              || setFromThisPosition.size === 0
-              || setFromThisPosition.has(player.id)) {
-              control.push({
+            if (setFromThisPosition === undefined || setFromThisPosition.size === 0) {
+              entity.directionalInputs.push({
                 id: 'rand',
                 direction,
                 type: KeyboardInputTypeEnum.DIRECTIONAL
@@ -401,9 +436,8 @@ function moveEntities(
 
             if (
               setFromThisPosition === undefined
-              || setFromThisPosition.size === 0
-              || setFromThisPosition.has(player.id)) {
-              control.push({
+              || setFromThisPosition.size === 0) {
+              entity.directionalInputs.push({
                 id: 'rand',
                 direction,
                 type: KeyboardInputTypeEnum.DIRECTIONAL
@@ -413,11 +447,11 @@ function moveEntities(
         }
       }
 
-      moveEntity(entity, spatialIndex, mapData, control, [], deltaTime);
+      moveEntity(entity, spatialIndex, mapData, [], deltaTime);
 
       if (isEntityThatEmitsTextSentence(entity)) {
         if (entity.message !== null
-            && Date.now() - entity.message.talkedTimestamp > entity.message.durationTimestamp) {
+          && Date.now() - entity.message.talkedTimestamp > entity.message.durationTimestamp) {
           entity.message = null;
         }
         else if (rand(0, 10000) < 15) {
@@ -438,8 +472,7 @@ function moveEntities(
   });
 }
 
-const compass: CompassEnum[] = [CompassEnum.EAST, CompassEnum.SOUTH, CompassEnum.NORTH, CompassEnum.WEST];
 function computeRandomDirection(): Vector2 {
-  const directionIndex = compass[rand(0, Object.values(normalizedDirection).length)];
+  const directionIndex = compassArray[rand(0, Object.values(normalizedDirection).length)];
   return normalizedDirection[directionIndex ?? CompassEnum.NORTH];
 }

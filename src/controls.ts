@@ -1,7 +1,11 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type DirectionKeyboardInput, CompassEnum, type Entity, normalizedDirection, type KeyboardInput, KeyboardInputTypeEnum } from "./models.js";
+import { type DirectionKeyboardInput, CompassEnum, normalizedDirection, type KeyboardInput, KeyboardInputTypeEnum, type Player } from "./models.js";
 
 const directionalKeyToCompassEnum: Record<string, CompassEnum> = {
+  'ArrowUp': CompassEnum.NORTH,
+  'ArrowRight': CompassEnum.EAST,
+  'ArrowDown': CompassEnum.SOUTH,
+  'ArrowLeft': CompassEnum.WEST,
   w: CompassEnum.NORTH,
   s: CompassEnum.SOUTH,
   a: CompassEnum.WEST,
@@ -13,7 +17,7 @@ const directionalKeyToCompassEnum: Record<string, CompassEnum> = {
 };
 
 export function setupKeyEvents(
-  _: Entity,
+  player: Player,
   directionalInputs: DirectionKeyboardInput[],
   controlInputs: KeyboardInput[]
 ): void {
@@ -22,8 +26,14 @@ export function setupKeyEvents(
     controlInputs.splice(0);
   });
 
+  let s = 0;
+
   window.addEventListener("keydown", (event) => {
     switch (event.key) {
+      case ('ArrowUp'):
+      case ('ArrowRight'):
+      case ('ArrowDown'):
+      case ('ArrowLeft'):
       case ('w'):
       case ('s'):
       case ('a'):
@@ -57,24 +67,26 @@ export function setupKeyEvents(
         }, controlInputs);
         break;
       case ('g'):
-        // if (player.sprite) {
-        //   switch ((s++) % 2) {
-        //     case (0):
-        //       player.sprite.position.x = 0;
-        //       player.sprite.position.y = 1;
-        //       break;
-        //     case (1):
-        //       player.sprite.position.x = 4;
-        //       player.sprite.position.y = 1;
-        //       break;
-        //   };
-        // }
+        if (player.sprite) {
+          switch ((s++) % 2) {
+            case (0):
+              player.sprite.positions = [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }];
+              break;
+            case (1):
+              player.sprite.positions = [{ x: 4, y: 1 }, { x: 5, y: 1 }, { x: 6, y: 1 }, { x: 7, y: 1 }];
+              break;
+          };
+        }
         break;
     }
   });
 
   window.addEventListener("keyup", (event) => {
     switch (event.key) {
+      case ('ArrowUp'):
+      case ('ArrowRight'):
+      case ('ArrowDown'):
+      case ('ArrowLeft'):
       case ('w'):
       case ('s'):
       case ('a'):

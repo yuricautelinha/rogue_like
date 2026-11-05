@@ -53,13 +53,13 @@ export type Camera = {
 
 export enum CompassEnum {
   NORTH,
-  NORTH_WEST,
-  WEST,
-  SOUTH_WEST,
-  SOUTH,
-  SOUTH_EAST,
   EAST,
+  SOUTH,
+  WEST,
   NORTH_EAST,
+  NORTH_WEST,
+  SOUTH_EAST,
+  SOUTH_WEST,
 };
 
 export const normalizedDirection: Record<CompassEnum, Vector2> = {
@@ -72,6 +72,8 @@ export const normalizedDirection: Record<CompassEnum, Vector2> = {
   [CompassEnum.EAST]: { x: 1, y: 0 },
   [CompassEnum.NORTH_EAST]: { x: -1, y: -1 },
 };
+
+export const compassArray: CompassEnum[] = [CompassEnum.EAST, CompassEnum.SOUTH, CompassEnum.NORTH, CompassEnum.WEST];
 
 export const directionToCompassMap: Record<string, CompassEnum> = {
   [`(0,-1)`]: CompassEnum.NORTH,
@@ -137,6 +139,7 @@ export interface Entity {
   id: EntityId;
   type: EntityTypeEnum;
   position: Vector2;
+  facing: CompassEnum;
   color: string;
   sprite?: Sprite;
 };
@@ -149,7 +152,7 @@ export interface BeignThatMoves {
   bodyPosition: Vector2;
   direction: Vector2;
   speed: number;
-  facing: CompassEnum;
+  directionalInputs: DirectionKeyboardInput[];
 }
 
 export interface BeignThatSees {
@@ -168,7 +171,7 @@ export interface EmitsTextSentence {
 export interface EmitsLight {
   intensity: number;
   duration: number;
-  elapsedDuration: number;
+  initialTimestamp: number;
 }
 
 export interface FollowsAPath {
@@ -199,8 +202,9 @@ export type Fireplace =
 
 export type Torch =
   Entity
-  & EmitsLight
-  & { type: EntityTypeEnum.TORCH };
+  & { type: EntityTypeEnum.TORCH }
+  & BeignThatMoves
+  & EmitsLight;
 
 export type GameEntity = Player | Goblin | Fireplace | Torch
 
@@ -221,7 +225,8 @@ export const isEntityThatEmitsTextSentence = (entity: Entity): entity is Entity 
 
 const entitiesThatMove = new Set<EntityTypeEnum>([
   EntityTypeEnum.PLAYER,
-  EntityTypeEnum.GOBLIN
+  EntityTypeEnum.GOBLIN,
+  EntityTypeEnum.TORCH
 ]);
 
 const entitiesThatFollowsAPath = new Set<EntityTypeEnum>([

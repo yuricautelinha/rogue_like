@@ -1,5 +1,5 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type Entity, type Camera, type MapData, TileTypeEnum, type DirectionKeyboardInput, directionToCompassMap, type KeyboardInput, KeyboardInputTypeEnum, type Vector2, EntityTypeEnum, type EntityId, type Player, type EntityStorage, type SpatialIndex, type GameEntity, type BeignThatMoves, type FollowsAPath, type EmitsTextSentence } from "./models.js";
+import { type Entity, type Camera, type MapData, TileTypeEnum, directionToCompassMap, type KeyboardInput, KeyboardInputTypeEnum, type Vector2, EntityTypeEnum, type EntityId, type Player, type EntityStorage, type SpatialIndex, type GameEntity, type BeignThatMoves, type FollowsAPath, type EmitsTextSentence, isEntityBeignThatMoves, CompassEnum } from "./models.js";
 import { normalizeVector2 } from "./utils.js";
 
 export function drawEntities(
@@ -25,7 +25,7 @@ export function drawEntities(
       }
 
       if (entity.id === player.id) {
-        drawEntityThatMoves(camera, player, mapData.tileSize, context);
+        drawEntityThatMoves(camera, player, mapData.tileSize, context, debug);
         continue;
       }
 
@@ -41,11 +41,10 @@ export function drawEntities(
       if (mapTile?.visible) {
         switch (entity.type) {
           case (EntityTypeEnum.GOBLIN):
-            drawEntityThatMoves(camera, entity, mapData.tileSize, context);
+            drawDebugEntityThatMoves(camera, entity, mapData.tileSize, context, debug);
+            drawPathToFollow(camera, entity, mapData.tileSize, context, debug);
+            drawEntityThatMoves(camera, entity, mapData.tileSize, context, debug);
             drawTextSentence(camera, entity, mapData.tileSize, context);
-            if (debug) {
-              drawPathToFollow(camera, entity, mapData.tileSize, context);
-            }
             break;
           default:
             drawEntityOn(camera, entity.position, mapData.tileSize, entity, context);
@@ -60,11 +59,10 @@ export function moveEntity(
   entity: Entity & BeignThatMoves,
   spatialIndex: SpatialIndex,
   mapData: MapData,
-  directionalInputs: DirectionKeyboardInput[],
   controlInputs: KeyboardInput[],
   dt: number
 ) {
-  const inputDirection = directionalInputs[0];
+  const inputDirection = entity.directionalInputs[0];
 
   if (!entity.direction.x && !entity.direction.y) {
     if (inputDirection) {
@@ -76,8 +74,9 @@ export function moveEntity(
     }
   }
 
-  if (inputDirection) {
-    entity.facing = directionToCompassMap[`(${inputDirection.direction.x},${inputDirection.direction.y})`] ?? entity.facing;
+  if (inputDirection && entity.sprite) {
+    const facing = directionToCompassMap[`(${inputDirection.direction.x},${inputDirection.direction.y})`] ?? CompassEnum.NORTH;
+    entity.sprite.current = facing;
   }
 
   if (controlInputs.find(control => control.type === KeyboardInputTypeEnum.IDLE)
@@ -107,12 +106,12 @@ export function moveEntity(
 
     entity.bodyPosition.x = entity.bodyPosition.x + normalizedDirection.x * (entity.speed * speedModifier) * dt;
     entity.bodyPosition.y = entity.bodyPosition.y + normalizedDirection.y * (entity.speed * speedModifier) * dt;
+    moveEntityOnSpatialIndex({ x, y }, entity, spatialIndex);
 
     if (entity.bodyPosition.x >= x && entity.direction.x > 0
       || entity.bodyPosition.x <= x && entity.direction.x < 0
       || entity.bodyPosition.y >= y && entity.direction.y > 0
       || entity.bodyPosition.y <= y && entity.direction.y < 0) {
-      moveEntityOnSpatialIndex({ x, y }, entity, spatialIndex);
 
       entity.direction.x = 0;
       entity.position.x = x;
@@ -121,7 +120,6 @@ export function moveEntity(
       entity.direction.y = 0;
       entity.position.y = y;
       entity.bodyPosition.y = y;
-
     }
   } else {
     entity.direction.x = 0;
@@ -136,39 +134,53 @@ export function addEntityBasedOnMousePosition(
   entity: GameEntity,
   mapData: MapData,
   count = 1,
+  event: MouseEvent,
   debug = false
 ) {
-  return (event: MouseEvent) => {
-    if (!debug) {
-      return;
-    }
-
-    const position = {
-      x: Math.floor(event.offsetX / mapData.tileSize + camera.position.x),
-      y: Math.floor(event.offsetY / mapData.tileSize + camera.position.y),
-    };
-
-    const player = getPlayerEntity(entityStorage);
-    const set = getSpatialIndexSet(entity, spatialIndex);
-
-    if (set && set.size > 0 && !set.has(player.id)) {
-      set.clear();
-      return;
-    }
-
-    const mapTile = mapData.map?.[position.y]?.[position.x];
-
-    if (mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX]?.type === TileTypeEnum.WALL) {
-      return;
-    }
-
-    new Array(count)
-      .fill(null)
-      .forEach(() => addEntity({ ...entity }, spatialIndex, entityStorage));
+  if (!debug) {
+    return;
   }
+
+  const position = {
+    x: Math.floor(event.offsetX / mapData.tileSize + camera.position.x),
+    y: Math.floor(event.offsetY / mapData.tileSize + camera.position.y),
+  };
+
+  entity.position.x = position.x;
+  entity.position.y = position.y;
+
+  if (isEntityBeignThatMoves(entity)) {
+    entity.bodyPosition.x = entity.position.x;
+    entity.bodyPosition.y = entity.position.y;
+  }
+
+  const player = getPlayerEntity(entityStorage);
+  const set = getSpatialIndexSet(entity, spatialIndex);
+
+  if (set && set.size > 0 && !set.has(player.id)) {
+    set.clear();
+    return;
+  }
+
+  const mapTile = mapData.map?.[position.y]?.[position.x];
+
+  if (mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX]?.type === TileTypeEnum.WALL) {
+    return;
+  }
+
+  new Array(count)
+    .fill(null)
+    .forEach(() => {
+      addEntity({ ...entity }, spatialIndex, entityStorage)
+    });
 }
 
-export const getEntitySpatialIndex = (position: Vector2) => `${position.x},${position.y}`;
+
+
+
+
+export const getEntitySpatialIndex =
+  (position: Vector2) => `${position.x},${position.y}`;
 
 export function addEntity(entity: GameEntity, spatialIndex: SpatialIndex, entityStorage: EntityStorage) {
   const index = getEntitySpatialIndex(entity.position);
@@ -229,7 +241,6 @@ function drawEntityThatMoves(
   const y = (entity.bodyPosition.y - camera.position.y) * tileSize;
 
   if (debug) {
-    drawDebugEntityThatMoves(camera, entity, tileSize, context);
   }
 
   drawEntityOn(camera, entity.bodyPosition, tileSize, entity, context);
@@ -246,7 +257,12 @@ function drawDebugEntityThatMoves(
   entity: Entity & BeignThatMoves,
   tileSize: number,
   context: CanvasRenderingContext2D,
+  debug = false
 ) {
+  if (!debug) {
+    return;
+  }
+
   context.globalAlpha = .5;
   context.fillStyle = entity.color;
 
@@ -302,8 +318,13 @@ function drawPathToFollow(
   camera: Camera,
   entity: Entity & FollowsAPath,
   tileSize: number,
-  context: CanvasRenderingContext2D
+  context: CanvasRenderingContext2D,
+  debug = false
 ) {
+  if (!debug) {
+    return;
+  }
+
   context.globalAlpha = .5;
   entity.path.forEach(position => {
     context.globalAlpha = .1;
