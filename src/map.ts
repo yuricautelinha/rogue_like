@@ -1,5 +1,5 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, normalizedDirection, type Vector2 } from "./models.js";
+import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, normalizedDirection, type Vector2, type AmbientLighting } from "./models.js";
 import { clearCanvas, rand, sleep } from "./utils.js";
 
 const camera: Camera = {
@@ -8,12 +8,12 @@ const camera: Camera = {
   position: { x: 0, y: 0 },
   speed: 0,
 }
-export function doMiniMap(player: Entity, mapData: MapData, miniMap: RGE_Canvas) {
-  clearCanvas("#000", miniMap);
-  drawMap(camera, mapData, miniMap, false);
+export function doMiniMap(player: Entity, mapData: MapData, rgeCanvas: RGE_Canvas) {
+  clearCanvas("#000", rgeCanvas);
+  drawMap(camera, mapData, { value: 0 }, rgeCanvas, false);
 
-  miniMap.context.fillStyle = "RED";
-  miniMap.context.fillRect(
+  rgeCanvas.context.fillStyle = "RED";
+  rgeCanvas.context.fillRect(
     player.position.x * mapData.tileSize,
     player.position.y * mapData.tileSize,
     mapData.tileSize,
@@ -24,6 +24,7 @@ export function doMiniMap(player: Entity, mapData: MapData, miniMap: RGE_Canvas)
 export function drawMap(
   camera: Camera,
   { map, mapSprite, tileSize, tilesData: tiles }: MapData,
+  ambientLighting: AmbientLighting,
   { canvas, context }: RGE_Canvas,
   useReveal = true,
 ): void {
@@ -38,7 +39,7 @@ export function drawMap(
 
   for (let y = 0; y < tilesY; ++y) {
     for (let x = 0; x < tilesX; ++x) {
-      const mapTile = map?.[y + cy]?.[x + cx] ?? wallTileMap(mapSprite);
+      const mapTile = map?.[y + cy]?.[x + cx] ?? wallTileMap(mapSprite, mapSprite.startWallPosition.x + 1);
       const tileData = tiles[mapTile.tileMapDataId];
 
       if (!tileData || useReveal && !mapTile.revelead) {
@@ -82,6 +83,15 @@ export function drawMap(
       }
     }
   }
+
+  const ambientLightHexValue = Math.floor(ambientLighting.value * 0.8 * 255).toString(16).padStart(2, '0');
+  context.fillStyle = "#000000" + ambientLightHexValue;
+  context.fillRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 }
 
 export function generateMapData(
@@ -93,7 +103,7 @@ export function generateMapData(
   const map: TileMap[][] =
     new Array(height).fill(0).map(() =>
       new Array(width)
-        .fill(mapSprite.wallOffset)
+        .fill(mapSprite.startWallPosition)
         .map(() => wallTileMap(mapSprite))
     );
 
@@ -121,7 +131,7 @@ export async function generateMap(mapData: MapData): Promise<MapData> {
   const { tilesData: tiles, map, width, height, mapSprite, spawnPosition } = mapData;
   const coverage = 20 + rand(0, 15);
 
-  let n = (width * height) * (coverage * 0.01);
+  let n = (width * height) * (coverage * 0.028);
   let x = 1 + rand(0, width - 2);
   let y = 1 + rand(0, height - 2);
 
@@ -457,7 +467,7 @@ const wallTileMapData = (
   type: TileTypeEnum.WALL,
   sprite: {
     spriteSheet: mapSprite.spriteSheet,
-    position: { x: index + mapSprite.wallOffset, y: 0 }
+    position: { x: index + mapSprite.startWallPosition.x, y: mapSprite.startWallPosition.y }
   },
   color: "#202020"
 });
@@ -470,13 +480,14 @@ const groundTileMapData = (
   type: TileTypeEnum.GROUND,
   sprite: {
     spriteSheet: mapSprite.spriteSheet,
-    position: { x: index + mapSprite.groundOffset, y: 0 }
+    position: { x: index + mapSprite.startGroundPosition.x, y: mapSprite.startGroundPosition.y }
   },
   color: "GREEN"
 });
 
-const wallTileMap = (mapSprite: MapSprite): TileMap => ({
-  tileMapDataId: mapSprite.wallOffset - 1 + rand(0, mapSprite.tileTypeSpriteCount - 1),
+
+const wallTileMap = (mapSprite: MapSprite, tileMapDataId?: number): TileMap => ({
+  tileMapDataId: tileMapDataId ?? rand(mapSprite.startWallPosition.x, mapSprite.startWallPosition.x + mapSprite.tileTypeSpriteCount - 2),
   revelead: false,
   visible: false,
   reveleadTimestamp: null,

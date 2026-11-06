@@ -1,13 +1,29 @@
 import { moveCamera } from "./camera.js";
-import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, TILE_SIZE } from "./constants.js";
+import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, messages, TILE_SIZE } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
 import { doMiniMap, drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
-import { type MapData, type Camera, type Entity, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum, type Vector2, type NpcStorage, type RGE_Canvas, type ObjectStorage, EntityEnum } from "./models.js";
+import { type MapData, type Camera, type Entity, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum, type Vector2, type NpcStorage, type RGE_Canvas, type ObjectStorage, EntityEnum, type AmbientLighting, type WorldTime } from "./models.js";
 import { addEnemyBasedOnMousePosition, addObjectBasedOnMousePosition, drawEntitiesFromNpcStorage, drawEntitiesFromObjectStorage, drawEntity, getEntityStorageKey, moveEntity } from "./entity.js";
-import { clearCanvas, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage, sleep } from "./utils.js";
+import { clearCanvas, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage } from "./utils.js";
 import { initPlayer } from "./player.js";
 
-let DEBUG = true;
+type GameLoopProps = {
+  player: Entity,
+  camera: Camera,
+  directionalInputs: DirectionKeyboardInput[],
+  controlInputs: KeyboardInput[],
+  mapData: MapData,
+  miniMapData: MapData,
+  enemies: NpcStorage,
+  objectStorage: ObjectStorage,
+  playerObjectsStorage: ObjectStorage,
+  worldTime: WorldTime,
+  ambientLighting: AmbientLighting,
+  rgeCanvas: RGE_Canvas,
+  miniMap: RGE_Canvas,
+};
+
+let DEBUG = false;
 let PAUSED = false;
 window.addEventListener("load", main);
 
@@ -22,9 +38,19 @@ async function main() {
   window.addEventListener("resize", () => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    context.imageSmoothingEnabled = false;
   });
 
   context.imageSmoothingEnabled = false;
+
+  const worldTime: WorldTime = {
+    time: 0,
+    dayLength: 60,
+  };
+
+  const ambientLighting: AmbientLighting = {
+    value: 1,
+  };
 
   const directionalInputs: DirectionKeyboardInput[] = [];
   const controlInputs: KeyboardInput[] = [];
@@ -44,7 +70,7 @@ async function main() {
     direction: { x: 0, y: 0, },
     speed: DEFAULT_PLAYER_SPEED,
     facing: CompassEnum.NORTH,
-    memory: DEFAULT_PLAYER_MEMORY,
+    memory: 5000,
     spawnTimestamp: Date.now()
   };
 
@@ -52,25 +78,26 @@ async function main() {
 
   const objects: ObjectStorage = {};
 
-  const playerObjectsStorage: ObjectStorage = {
-    0: [{
-      body: player.body,
-      position: player.position,
-      color: "",
-      direction: { x: 0, y: 0 },
-      facing: CompassEnum.NORTH,
-      id: EntityEnum.TORCH,
-      isAlive: true,
-      memory: 10000,
-      spawnTimestamp: Date.now(),
-      speed: 0,
-      viewDistance: 5,
-      sprite: {
-        spriteSheet: gameSprites,
-        position: { x: 0, y: 3 }
-      }
-    }]
-  };
+  const playerObjectsStorage: ObjectStorage = {};
+  // const playerObjectsStorage: ObjectStorage = {
+  //   0: [{
+  //     body: player.body,
+  //     position: player.position,
+  //     color: "",
+  //     direction: { x: 0, y: 0 },
+  //     facing: CompassEnum.NORTH,
+  //     id: EntityEnum.TORCH,
+  //     isAlive: true,
+  //     memory: 1000 * 60,
+  //     spawnTimestamp: Date.now(),
+  //     speed: 0,
+  //     viewDistance: 5,
+  //     sprite: {
+  //       spriteSheet: gameSprites,
+  //       position: { x: 0, y: 3 }
+  //     }
+  //   }]
+  // };
 
   const camera: Camera = {
     position: { x: 0, y: 0 },
@@ -82,15 +109,15 @@ async function main() {
   const mapSprite: MapSprite = {
     spriteSheet: gameSprites,
     tileTypeSpriteCount: 4,
-    groundOffset: 1,
-    wallOffset: 5
+    startGroundPosition: { x: 1, y: 4 },
+    startWallPosition: { x: 5, y: 4 },
   };
 
-  let mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
+  miniMap.canvas.width = 200;
+  const mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
   const miniMapData: MapData = { ...mapData, tileSize: miniMap.canvas.width / MAP_TILES_WIDTH };
 
   // TODO: Should do this when update map
-  miniMap.canvas.width = 300;
   miniMap.canvas.height = miniMapData.tileSize * MAP_TILES_HEIGHT;
 
   loadButton("load-map-button").addEventListener("click", () => loadMapFromLocalStorage(player, enemies, mapData));
@@ -98,9 +125,10 @@ async function main() {
   loadButton("save-map-button").addEventListener("click", () => saveMapToLocalStorage(mapData));
 
   loadButton("generate-map-button").addEventListener("click", async () => {
-    mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
+    const newMap = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
 
-    await sleep(1);
+    mapData.map = newMap.map;
+    miniMapData.map = newMap.map;
 
     player.position.x = mapData.spawnPosition.x;
     player.position.y = mapData.spawnPosition.y;
@@ -155,6 +183,32 @@ async function main() {
     camera.speed = player.speed;
   });
 
+  let currentSprite = 0;
+  loadButton("change-map-sprite").addEventListener("click", async () => {
+    currentSprite = (currentSprite + 1) % 2;
+
+    if (currentSprite === 1) {
+      const mapSprite: MapSprite = {
+        spriteSheet: gameSprites,
+        tileTypeSpriteCount: 4,
+        startGroundPosition: { x: 1, y: 0 },
+        startWallPosition: { x: 5, y: 0 },
+      };
+      const m = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite);
+      mapData.tilesData = m.tilesData;
+    }
+    else {
+      const mapSprite: MapSprite = {
+        spriteSheet: gameSprites,
+        tileTypeSpriteCount: 4,
+        startGroundPosition: { x: 1, y: 4 },
+        startWallPosition: { x: 5, y: 4 },
+      };
+      const m = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite);
+      mapData.tilesData = m.tilesData;
+    }
+  });
+
   canvas.addEventListener("click", (event) => {
     event.preventDefault();
     if (loadInput("enemy").checked) {
@@ -185,12 +239,39 @@ async function main() {
   });
 
 
-  doMiniMap(player, miniMapData, miniMap);
+  const gameLoopProps: GameLoopProps = {
+    player,
+    camera,
+    directionalInputs,
+    controlInputs,
+    mapData,
+    miniMapData,
+    enemies,
+    objectStorage: objects,
+    playerObjectsStorage,
+    worldTime,
+    ambientLighting,
+    rgeCanvas,
+    miniMap,
+  };
 
   initPlayer(player, mapData, gameSprites);
   setupKeyEvents(player, directionalInputs, controlInputs);
-  requestAnimationFrame(
-    gameLoop(
+  requestAnimationFrame(gameLoop(gameLoopProps));
+};
+
+let lastTime = 0;
+function gameLoop(props: GameLoopProps) {
+  const { canvas, context } = props.rgeCanvas;
+
+  return function(time: number) {
+    requestAnimationFrame(gameLoop(props));
+
+    if (PAUSED) {
+      return;
+    }
+
+    const {
       player,
       camera,
       directionalInputs,
@@ -198,56 +279,23 @@ async function main() {
       mapData,
       miniMapData,
       enemies,
-      objects,
+      objectStorage,
       playerObjectsStorage,
+      worldTime,
+      ambientLighting,
       rgeCanvas,
       miniMap,
-      0
-    )
-  );
-};
-
-function gameLoop(
-  player: Entity,
-  camera: Camera,
-  directionalInputs: DirectionKeyboardInput[],
-  controlInputs: KeyboardInput[],
-  mapData: MapData,
-  miniMapData: MapData,
-  enemies: NpcStorage,
-  objectStorage: ObjectStorage,
-  playerObjectsStorage: ObjectStorage,
-  rgeCanvas: RGE_Canvas,
-  miniMap: RGE_Canvas,
-  lastTime: number
-) {
-  const { canvas, context } = rgeCanvas;
-
-  return function(time: number) {
-    if (PAUSED) {
-      sleep(1).then(() => {
-        requestAnimationFrame(
-          gameLoop(
-            player,
-            camera,
-            directionalInputs,
-            controlInputs,
-            mapData,
-            miniMapData,
-            enemies,
-            objectStorage,
-            playerObjectsStorage,
-            rgeCanvas,
-            miniMap,
-            time
-          )
-        );
-      });
-
-      return;
-    }
+    } = props;
 
     const dt = (time - lastTime) / 1000;
+    lastTime = time;
+
+    worldTime.time = time / 1000;
+
+    const normalizedTimestamp = (worldTime.time % worldTime.dayLength) / worldTime.dayLength;
+
+    ambientLighting.value = (1 + Math.cos(normalizedTimestamp * Math.PI * 2)) / 2;
+    player.viewDistance = Math.floor((1 - ambientLighting.value) * 16);
 
     const enemyAbovePlayer = enemies[getEntityStorageKey(player.position)]?.[0];
     if (enemyAbovePlayer
@@ -277,11 +325,12 @@ function gameLoop(
     context.beginPath();
 
     clearCanvas("#000", rgeCanvas);
-    drawMap(camera, mapData, rgeCanvas);
+    drawMap(camera, mapData, ambientLighting, rgeCanvas);
     drawEntitiesFromObjectStorage(camera, mapData, player, objectStorage, context, DEBUG);
     drawEntitiesFromNpcStorage(camera, mapData, player, enemies, context, DEBUG);
     drawEntity(player, camera, mapData, context, DEBUG);
     drawEntitiesFromObjectStorage(camera, mapData, player, playerObjectsStorage, context, DEBUG);
+    doMiniMap(player, miniMapData, miniMap);
 
 
     if (DEBUG) {
@@ -308,30 +357,28 @@ function gameLoop(
       player.memory = 0;
     }
 
+    const totalMinutes = normalizedTimestamp * 60 * 24;
+    const hours = Math.floor(totalMinutes / 60).toFixed(0).padStart(2, '0');
+    const minutes = Math.floor(totalMinutes % 60).toFixed(0).padStart(2, '0');
+    const totalDays = Math.floor(worldTime.time / worldTime.dayLength);
+    const day = ((totalDays % 30) + 1).toFixed(0).padStart(2, '0');
+    const month = Math.floor(((totalDays / 30) % 12) + 1).toFixed(0).padStart(2, '0');
+    const year = Math.floor(totalDays / (30 * 12)).toFixed(0).padStart(2, '0');;
+    const message = `Day ${day}/${month}/${year} ${hours}:${minutes}h`;
+
+    context.font = "60px bold sans-serif";
+    context.fillStyle = "WHITE";
+    context.fillText(
+      message,
+      mapData.tileSize,
+      mapData.tileSize,
+    );
+
     if (DEBUG) {
       //drawGrid(TILE_SIZE, camera, rgeCanvas, "#FFFFFFAA");
     }
 
     context.closePath();
-
-    sleep(1).then(() => {
-      requestAnimationFrame(
-        gameLoop(
-          player,
-          camera,
-          directionalInputs,
-          controlInputs,
-          mapData,
-          miniMapData,
-          enemies,
-          objectStorage,
-          playerObjectsStorage,
-          rgeCanvas,
-          miniMap,
-          time
-        )
-      );
-    });
   }
 }
 
@@ -515,69 +562,3 @@ function computeRandomDirection(): Vector2 {
   const directionIndex = compass[rand(0, Object.values(normalizedDirection).length)];
   return normalizedDirection[directionIndex ?? CompassEnum.NORTH];
 }
-
-const messages: string[] = [
-  //Hungry goblin
-  "Grrrr... human meat!",
-  "Flesh! FRESH FLESH!",
-  "Goblin hungry! You look tasty!",
-  "Me smell dinner!",
-  "Little human, big meal!",
-  "Crunchy bones! Yummy!",
-  "No run! Meat come back!",
-  "Goblin belly empty... YOU FILL!",
-  "Human smell like roasted pig!",
-  "Gimme leg! GIMME LEG!",
-  //Aggressive goblin,
-  "GRAAAH! KILL THE HUMAN!",
-  "You no belong here!",
-  "Goblin smash! Goblin smash!",
-  "I bash your skull!",
-  "You die now, pink-skin!",
-  "Get 'em! Get 'em!",
-  "Stabby stabby!",
-  "Me gonna wear your teeth!",
-  "Run while you still got legs!",
-  "Goblins eat good tonight!",
-  //Stupid / funny goblin,
-  "Huh? What that?",
-  "Me was here first!",
-  "Shiny! Is mine!",
-  "You smell funny!",
-  "Where my stick? WHO TOOK STICK?",
-  "Boss said no eat prisoners... boss not here!",
-  "Me smart goblin! Very smart!",
-  "Wait... which way we go?",
-  "That hurt! CHEATER!",
-  "Me no scared! ...Maybe little scared.",
-  //Greedy goblin,
-  "Gold! GOLD! MY GOLD!",
-  "Give shiny or lose fingers!",
-  "Mine! Mine! MINE!",
-  "You have coin? Me have knife!",
-  "Pretty necklace... now goblin necklace!",
-  "Nobody steals from goblin!",
-  "I saw it first!",
-  "More loot! MORE!",
-  //Combat / death screams,
-  "GRAAAAH!",
-  "Me gonna get you!",
-  "ARGH! Sneaky human!",
-  "No fair! Too many!",
-  "Goblin never surrender!",
-  "Me leg! ME LEG!",
-  "Boss... me sorry...",
-  "Tell tribe... me was brave...",
-  "Not... tasty... enough...",
-  //Short random idle dialogue,
-  "Hehehe...",
-  "Smell food?",
-  "Me hear something...",
-  "Who's there?",
-  "Stupid rocks...",
-  "Need bigger club.",
-  "Me hate rain.",
-  "Human nearby...",
-  "Goblin see you!",
-  "Sniff sniff... meat!",
-];

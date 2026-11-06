@@ -40,8 +40,9 @@ export type MapData = {
 export type MapSprite = {
   spriteSheet: SpriteSheet;
   tileTypeSpriteCount: number;
-  groundOffset: number;
-  wallOffset: number;
+  startGroundPosition: Vector2;
+  startWallPosition: Vector2;
+
 };
 
 export type Camera = {
@@ -150,3 +151,12 @@ export type DirectionKeyboardInput = KeyboardInput & {
   type: KeyboardInputTypeEnum.DIRECTIONAL;
   direction: Vector2;
 };
+
+export type WorldTime = {
+  time: number;
+  dayLength: number;
+};
+
+export type AmbientLighting = {
+  value: number;
+}

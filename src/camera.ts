@@ -26,7 +26,6 @@ export function moveCamera(
     const tilesX = Math.floor(canvas.width / mapData.tileSize);
     const tilesY = Math.floor(canvas.height / mapData.tileSize);
 
-
     camera.position.x = Math.min(Math.max(player.body.x - tilesX / 2, 0), mapData.width - tilesX);
     camera.position.y = Math.min(Math.max(player.body.y - tilesY / 2, 0), mapData.height - tilesY);
   }

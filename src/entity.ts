@@ -320,7 +320,7 @@ export function addObjectBasedOnMousePosition(
     const object: Entity = {
       id: EntityEnum.FIREPLACE,
       isAlive: true,
-      viewDistance: DEFAULT_PLAYER_VIEW_DISTANCE,
+      viewDistance: 5,
       color: "BLUE",
       position: { x: position.x, y: position.y },
       body: { x: position.x, y: position.y },

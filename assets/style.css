@@ -1,0 +1,57 @@
+body {
+  background: #888;
+  color: #FFF;
+}
+
+canvas#game {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated;
+  z-index: 1;
+}
+canvas#mini-map {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  image-rendering: pixelated;
+  z-index: 2;
+  opacity: .8;
+}
+
+img {
+  display: none;
+}
+
+#debug-controls {
+  background: #000;
+  padding: 10px;
+  position: absolute;
+  z-index: 3;
+  text-align: left;
+  right: 10px;
+  top: 10px;
+  opacity: 0;
+}
+#debug-controls:hover {
+  opacity: 1;
+}
+
+#buttons-control, #player-control {
+}
+
+button, input {
+  border: none;
+  background: #be9fc9;
+  color: #181818;
+  padding: 3px 16px;
+  font-weight: bold;
+  font-size: 20px;
+  margin: 3px 5px;
+  border-radius: 6px;
+}
+
+input {
+  background: #FFF;
+}

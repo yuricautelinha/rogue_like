@@ -2,49 +2,10 @@
 <html>
   <head>
     <title>My first Rogue like game</title> 
-    <link rel="icon" href="favicon.ico">
+    <link rel="icon" href="favicon.ico" />
+    <link rel="stylesheet" href="assets/style.css" />
     <style>
-      body {
-        background: #888;
-        color: #FFF;
-      }
 
-      canvas#game {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        image-rendering: pixelated;
-        z-index: 1;
-      }
-      canvas#mini-map {
-        position: absolute;
-        bottom: 10px;
-        left: 10px;
-        image-rendering: pixelated;
-        z-index: 2;
-      }
-
-      img {
-        display: none;
-      }
-
-      #debug-controls {
-        background: #000;
-        padding: 10px;
-        position: absolute;
-        z-index: 3;
-        text-align: right;
-        right: 10px;
-        top: 10px;
-        opacity: .2;
-      }
-      #debug-controls:hover {
-        opacity: 1;
-      }
-
-      #buttons-control, #player-control {
-      }
     </style>
   </head>
   <body>
@@ -54,13 +15,6 @@
       <canvas id="mini-map"></canvas>
     </div>
     <div id="debug-controls">
-      <div id="buttons-control">
-        <button id="save-map-button" type="button">Save map</button>
-        <button id="load-map-button" type="button">Load saved map</button>
-        <button id="generate-map-button" type="button">Generate new map</button>
-        <button id="debug-button" type="button">Debug mode</button>
-        <button id="freelook-button" type="button">Freelook mode</button>
-      </div>
       <div id="player-control">
         <div>
           <input id="player-speed" type="number" min="0" value="10" />
@@ -78,6 +32,14 @@
           <label for="fireplace">Fireplace</label>
           <input type="radio" id="fireplace" name="placement" value="fireplace" />
         </div>
+      <div id="buttons-control">
+        <button id="save-map-button" type="button">Save map</button>
+        <button id="load-map-button" type="button">Load saved map</button>
+        <button id="generate-map-button" type="button">Generate new map</button>
+        <button id="debug-button" type="button">Debug mode</button>
+        <button id="freelook-button" type="button">Freelook mode</button>
+        <button id="change-map-sprite" type="button">Change map sprite</button>
+      </div>
       </div>
     </div>
     <script src="./dist/index.js" type="module"></script>
