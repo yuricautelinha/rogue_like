@@ -23,6 +23,7 @@ export type TileMapData = {
 export type TileMap = {
   tileMapDataId: number;
   visible: boolean;
+  visibleBySun: boolean;
   revelead: boolean;
   reveleadTimestamp: number | null;
 };
@@ -159,4 +160,5 @@ export type WorldTime = {
 
 export type AmbientLighting = {
   value: number;
+  modifier: boolean;
 }

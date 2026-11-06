@@ -335,5 +335,6 @@ const wallTileMap = (mapSprite: MapSprite): TileMap => ({
   tileMapDataId: rand(mapSprite.startWallPosition.x, mapSprite.startWallPosition.x + mapSprite.tileTypeSpriteCount - 2),
   revelead: false,
   visible: false,
+  visibleBySun: false,
   reveleadTimestamp: null,
 });

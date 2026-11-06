@@ -1,5 +1,5 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, normalizedDirection, type Vector2, type AmbientLighting } from "./models.js";
+import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, normalizedDirection, type Vector2 } from "./models.js";
 import { clearCanvas, rand, sleep } from "./utils.js";
 
 const camera: Camera = {
@@ -10,7 +10,7 @@ const camera: Camera = {
 }
 export function doMiniMap(player: Entity, mapData: MapData, rgeCanvas: RGE_Canvas) {
   clearCanvas("#000", rgeCanvas);
-  drawMap(camera, mapData, { value: 0 }, rgeCanvas, false);
+  drawMapAsShapes(camera, mapData, rgeCanvas);
 
   rgeCanvas.context.fillStyle = "RED";
   rgeCanvas.context.fillRect(
@@ -24,9 +24,7 @@ export function doMiniMap(player: Entity, mapData: MapData, rgeCanvas: RGE_Canva
 export function drawMap(
   camera: Camera,
   { map, mapSprite, tileSize, tilesData: tiles }: MapData,
-  ambientLighting: AmbientLighting,
   { canvas, context }: RGE_Canvas,
-  useReveal = true,
 ): void {
   const tilesX = Math.ceil(canvas.width / tileSize) + 1;
   const tilesY = Math.ceil(canvas.height / tileSize) + 1;
@@ -42,37 +40,31 @@ export function drawMap(
       const mapTile = map?.[y + cy]?.[x + cx] ?? wallTileMap(mapSprite, mapSprite.startWallPosition.x + 1);
       const tileData = tiles[mapTile.tileMapDataId];
 
-      if (!tileData || useReveal && !mapTile.revelead) {
+      if (!tileData || !mapTile.revelead) {
         continue;
       }
 
-      if (useReveal) {
-        context.drawImage(
-          mapSprite.spriteSheet.sprites,
-          tileData.sprite.position.x * tileData.sprite.spriteSheet.tileSize,
-          tileData.sprite.position.y * tileData.sprite.spriteSheet.tileSize,
-          tileData.sprite.spriteSheet.tileSize,
-          tileData.sprite.spriteSheet.tileSize,
-          (x - offsetX) * tileSize,
-          (y - offsetY) * tileSize,
-          tileSize,
-          tileSize
-        );
-      } else {
-        if (tileData.type === TileTypeEnum.GROUND) {
-          context.fillStyle = "#89775c";
-        } else {
-          context.fillStyle = "#000";
-        }
+      context.drawImage(
+        mapSprite.spriteSheet.sprites,
+        tileData.sprite.position.x * tileData.sprite.spriteSheet.tileSize,
+        tileData.sprite.position.y * tileData.sprite.spriteSheet.tileSize,
+        tileData.sprite.spriteSheet.tileSize,
+        tileData.sprite.spriteSheet.tileSize,
+        (x - offsetX) * tileSize,
+        (y - offsetY) * tileSize,
+        tileSize,
+        tileSize
+      );
+
+      if (!mapTile.visible) {
+        context.fillStyle = "#00000099";
         context.fillRect(
           (x - offsetX) * tileSize,
           (y - offsetY) * tileSize,
           tileSize,
           tileSize
         );
-      }
-
-      if (useReveal && !mapTile.visible) {
+      } else {
         context.fillStyle = "#00000099";
         context.fillRect(
           (x - offsetX) * tileSize,
@@ -83,15 +75,44 @@ export function drawMap(
       }
     }
   }
+}
 
-  const ambientLightHexValue = Math.floor(ambientLighting.value * 0.8 * 255).toString(16).padStart(2, '0');
-  context.fillStyle = "#000000" + ambientLightHexValue;
-  context.fillRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
+export function drawMapAsShapes(
+  camera: Camera,
+  { map, mapSprite, tileSize, tilesData: tiles }: MapData,
+  { canvas, context }: RGE_Canvas,
+): void {
+  const tilesX = Math.ceil(canvas.width / tileSize) + 1;
+  const tilesY = Math.ceil(canvas.height / tileSize) + 1;
+
+  const offsetX = camera.position.x % 1;
+  const offsetY = camera.position.y % 1;
+
+  const cx = Math.floor(camera.position.x);
+  const cy = Math.floor(camera.position.y);
+
+  for (let y = 0; y < tilesY; ++y) {
+    for (let x = 0; x < tilesX; ++x) {
+      const mapTile = map?.[y + cy]?.[x + cx] ?? wallTileMap(mapSprite, mapSprite.startWallPosition.x + 1);
+      const tileData = tiles[mapTile.tileMapDataId];
+
+      if (!tileData) {
+        continue;
+      }
+
+      if (tileData.type === TileTypeEnum.GROUND) {
+        context.fillStyle = "#89775c";
+      } else {
+        context.fillStyle = "#000";
+      }
+      context.fillRect(
+        (x - offsetX) * tileSize,
+        (y - offsetY) * tileSize,
+        tileSize,
+        tileSize
+      );
+    }
+  }
 }
 
 export function generateMapData(
@@ -131,7 +152,7 @@ export async function generateMap(mapData: MapData): Promise<MapData> {
   const { tilesData: tiles, map, width, height, mapSprite, spawnPosition } = mapData;
   const coverage = 20 + rand(0, 15);
 
-  let n = (width * height) * (coverage * 0.028);
+  let n = (width * height) * (coverage * 0.025);
   let x = 1 + rand(0, width - 2);
   let y = 1 + rand(0, height - 2);
 
@@ -233,6 +254,7 @@ export function updateMapFog(
 
       mapTile.visible = isGoingTo;
       mapTile.revelead = mapTile.revelead || isGoingTo || isInFront;
+      mapTile.visibleBySun = true;
 
       if (isGoingTo || isInFront) {
         mapTile.reveleadTimestamp = Date.now();
@@ -320,6 +342,7 @@ export function updateMapFogBasedOnObject(
       if (hasLightOfSight) {
         mapTile.visible = true;
         mapTile.revelead = true;
+        //mapTile.visibleBySun = false;
         mapTile.reveleadTimestamp = Date.now();
 
         if (x === -object.viewDistance) {
@@ -490,5 +513,6 @@ const wallTileMap = (mapSprite: MapSprite, tileMapDataId?: number): TileMap => (
   tileMapDataId: tileMapDataId ?? rand(mapSprite.startWallPosition.x, mapSprite.startWallPosition.x + mapSprite.tileTypeSpriteCount - 2),
   revelead: false,
   visible: false,
+  visibleBySun: true,
   reveleadTimestamp: null,
 });

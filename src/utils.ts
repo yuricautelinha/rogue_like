@@ -116,6 +116,7 @@ export function loadMapFromLocalStorage(player: Entity, enemiesStorage: NpcStora
     mapData.width = newMapData.width;
     mapData.tileSize = newMapData.tileSize;
     mapData.map = newMapData.map;
+    mapData.spawnPosition = newMapData.spawnPosition;
     //mapData.tilesData = newMapData.tilesData;
     //mapData.mapSprite = newMapData.mapSprite;
 
