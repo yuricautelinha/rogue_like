@@ -328,7 +328,7 @@ export function updateMapFog(
 
       mapTile.visible = isGoingTo;
       mapTile.revelead = mapTile.revelead || isGoingTo || isInFront;
-      mapTile.visibleBySun = true;
+      mapTile.visibleBySun = false;
 
       if (isGoingTo || isInFront) {
         mapTile.reveleadTimestamp = Date.now();
@@ -342,9 +342,7 @@ export function updateMapFog(
 
   for (let y = -player.eyes.viewDistance; y < player.eyes.viewDistance + 1; ++y) {
     for (let x = -player.eyes.viewDistance; x < player.eyes.viewDistance + 1; ++x) {
-      const dot = facing.x * x + facing.y * y;
 
-      if (dot < 0) continue;
 
       const mx = px + x;
       const my = py + y;
@@ -362,8 +360,11 @@ export function updateMapFog(
       );
 
       if (hasLightOfSight) {
-        mapTile.visible = true;
+        const dot = facing.x * x + facing.y * y;
+
+        mapTile.visible = dot >= 0;
         mapTile.revelead = true;
+        mapTile.visibleBySun = true;
         mapTile.reveleadTimestamp = Date.now();
       }
     }
@@ -442,6 +443,7 @@ export function updateMapWithoutFog(
 
       mapTile.visible = true;
       mapTile.revelead = true;
+      mapTile.visibleBySun = true;
     }
   }
 }

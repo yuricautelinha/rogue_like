@@ -116,8 +116,8 @@ export function drawEntitiesFromNpcStorage(
 
       if (mapTile?.visible) {
         drawEntityPathToFollow(camera, enemy, mapData.tileSize, context, debug);
-        drawEntityOnPosition(camera, enemy.movment.body, enemy, mapData.tileSize, context, debug);
         drawEntityCanMove(enemy, camera, mapData.tileSize, context, debug);
+        drawEntityOnPosition(camera, enemy.movment.body, enemy, mapData.tileSize, context, debug);
       }
 
       if (enemy.message !== null && enemy.message.memory.canRemember) {
@@ -242,7 +242,7 @@ export function addEntityBasedOnMousePosition<T extends Entity>(
   event: MouseEvent,
   count: number,
   spriteSheet: SpriteSheet
-) {
+): T[] {
   const position = {
     x: Math.floor(event.offsetX / mapData.tileSize + camera.position.x),
     y: Math.floor(event.offsetY / mapData.tileSize + camera.position.y),
@@ -252,22 +252,24 @@ export function addEntityBasedOnMousePosition<T extends Entity>(
 
   if (entityStorage[storageKey] !== undefined && entityStorage[storageKey]?.length > 0) {
     entityStorage[storageKey].splice(0, 1);
-    return;
+    return [];
   }
 
   const mapTile = mapData.map?.[position.y]?.[position.x];
 
   if (mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX]?.type === TileTypeEnum.WALL) {
-    return;
+    return [];
   }
 
   const generatedEnemies = new Array(count).fill(null).map(() => {
-    const newEntity = JSON.parse(JSON.stringify({ ...entity, position })) as T;
+    let newEntity = JSON.parse(JSON.stringify({ ...entity, position })) as T;
     newEntity.sprite.spriteSheet = spriteSheet;
     return newEntity;
   });
 
   entityStorage[storageKey] = generatedEnemies;
+
+  return generatedEnemies;
 }
 
 export const getEntityStorageKey = (position: Vector2) => `${position.x},${position.y}`;

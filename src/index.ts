@@ -1,8 +1,8 @@
 import { moveCamera } from "./camera.js";
-import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, messages, TILE_SIZE } from "./constants.js";
+import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, messages, OUTBOUNDED_INDEX, TILE_SIZE } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
 import { applyLight, doMiniMap, drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
-import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, type EntityStorage, EntityEnum, type AmbientLighting, type WorldTime, type CreatureEntity, type FireplaceEntity, type TorchEntity, type PlayerEntity, type MapTimeColorPallete } from "./models.js";
+import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, type EntityStorage, EntityEnum, type AmbientLighting, type WorldTime, type CreatureEntity, type FireplaceEntity, type TorchEntity, type PlayerEntity, type MapTimeColorPallete, TileTypeEnum } from "./models.js";
 import { addEntityBasedOnMousePosition, drawEntitiesFromNpcStorage, drawEntitiesFromObjectStorage, drawEntityOnPosition, getEntityStorageKey, moveEntity } from "./entity.js";
 import { clearCanvas, drawGrid, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage } from "./utils.js";
 import { initPlayer } from "./player.js";
@@ -45,7 +45,7 @@ async function main() {
 
   const worldTime: WorldTime = {
     time: 0,
-    dayLength: 30,
+    dayLength: 60 * 5,
   };
 
   const ambientLighting: AmbientLighting = {
@@ -233,6 +233,15 @@ async function main() {
     }
   });
 
+  const zoomFactor = 10;
+  loadButton("zoom-out").addEventListener("click", () => {
+    mapData.tileSize = Math.max(10, mapData.tileSize - zoomFactor);
+  });
+
+  loadButton("zoom-in").addEventListener("click", () => {
+    mapData.tileSize = Math.min(100, mapData.tileSize + zoomFactor);
+  });
+
   canvas.addEventListener("click", (event) => {
     event.preventDefault();
     if (loadInput("enemy").checked) {
@@ -269,14 +278,19 @@ async function main() {
           positions: [],
           memory: {
             canRemember: false,
-            duration: 5000,
+            duration: 1000 * 10,
             endTimestamp: 0,
           },
         },
         message: null,
       };
 
-      addEntityBasedOnMousePosition(camera, mapData, enemies, enemy, event, 1, gameSprites);
+      const newEntities = addEntityBasedOnMousePosition(camera, mapData, enemies, enemy, event, 1, gameSprites);
+
+      newEntities.forEach(entity => {
+        entity.movment.body.x = entity.position.x;
+        entity.movment.body.y = entity.position.y;
+      });
     } else {
       const fireplace: FireplaceEntity = {
         id: 2,
@@ -290,7 +304,7 @@ async function main() {
           positions: [{ x: 0, y: 2 }, { x: 1, y: 2 }]
         },
         light: {
-          distance: DEFAULT_PLAYER_VIEW_DISTANCE,
+          distance: 6,
           memory: {
             canRemember: true,
             duration: 1000 * 60,
@@ -413,10 +427,8 @@ function gameLoop(props: GameLoopProps) {
       moveEntity(player, mapData, directionalInputs, controlInputs, dt);
     }
 
-    if (player.health.isAlive) {
-      moveCamera(player, camera, mapData, directionalInputs, canvas, dt);
-      moveEnemiesUsingManhattanAlgo(player, mapData, enemies, dt);
-    }
+    moveCamera(player, camera, mapData, directionalInputs, canvas, dt);
+    moveEnemiesUsingManhattanAlgo(player, mapData, enemies, dt);
 
     if (DEBUG) {
       updateMapWithoutFog(mapData, camera, canvas);
@@ -471,7 +483,7 @@ function gameLoop(props: GameLoopProps) {
     );
 
     if (DEBUG) {
-      drawGrid(TILE_SIZE, camera, rgeCanvas, "#FFFFFF18");
+      drawGrid(mapData.tileSize, camera, rgeCanvas, "#FFFFFF18");
     }
 
     context.closePath();
@@ -549,7 +561,11 @@ function moveEnemiesUsingManhattanAlgo(
         enemy.movment.direction.x * enemyToPlayerVector.x + enemy.movment.direction.y * enemyToPlayerVector.y >= 0;
 
       if (enemy.path.memory.canRemember || isPlayerAheadEnemy) {
-        newPathToFollow = getLineOfSightPath(mapData, enemy.position, player.position);
+        const p = getLineOfSightPath(mapData, enemy.position, player.position);
+
+        if (p.length) {
+          newPathToFollow = p;
+        }
       }
 
       const hasLineOfSightToPlayer = newPathToFollow.length > 0;
@@ -568,49 +584,62 @@ function moveEnemiesUsingManhattanAlgo(
         enemy.color = enemy.path.memory.canRemember ? "BLUE" : "RED";
       }
 
-      if (enemy.path.positions.length > 0) {
-        const nextPosition = enemy.path.positions.splice(0, 1)[0];
+      const nextPosition = enemy.path.positions.splice(0, 1)[0];
 
-        if (nextPosition !== undefined) {
-          const direction: Vector2 = {
-            x: nextPosition.x - enemy.position.x,
-            y: nextPosition.y - enemy.position.y,
-          };
+      if (nextPosition !== undefined) {
+        const direction: Vector2 = {
+          x: nextPosition.x - enemy.position.x,
+          y: nextPosition.y - enemy.position.y,
+        };
 
-          if (!hasLineOfSightToPlayer) {
-            enemy.color = "PURPLE";
-          }
+        if (!hasLineOfSightToPlayer) {
+          enemy.color = "PURPLE";
+        }
 
-          const newKey = getEntityStorageKey({
-            x: enemy.position.x + direction.x,
-            y: enemy.position.y + direction.y
+        const newKey = getEntityStorageKey({
+          x: enemy.position.x + direction.x,
+          y: enemy.position.y + direction.y
+        });
+
+        if (enemiesStorage[newKey] === undefined || enemiesStorage[newKey].length === 0) {
+          control.push({
+            id: 'rand',
+            direction,
+            type: KeyboardInputTypeEnum.DIRECTIONAL
           });
-
-          if (enemiesStorage[newKey] === undefined || enemiesStorage[newKey].length === 0) {
-            control.push({
-              id: 'rand',
-              direction,
-              type: KeyboardInputTypeEnum.DIRECTIONAL
-            });
-          } else {
-            enemy.path.positions.unshift(nextPosition);
-          }
+        } else {
+          enemy.path.positions.unshift(nextPosition);
         }
       }
-      else if (rand(0, 10000) < 5) {
-        // const direction: Vector2 = computeRandomDirection();
-        // const newKey = getEntityStorageKey({
-        //   x: enemy.position.x + direction.x,
-        //   y: enemy.position.y + direction.y
-        // });
-        //
-        // if (enemiesStorage[newKey] === undefined || enemiesStorage[newKey].length === 0) {
-        //   control.push({
-        //     id: 'rand',
-        //     direction,
-        //     type: KeyboardInputTypeEnum.DIRECTIONAL
-        //   });
-        // }
+      else if (!enemy.path.memory.canRemember && rand(0, 10000) < 5000) {
+        const pathCount = rand(1, 4);
+
+        if (pathCount > 0) {
+          const currentPosition = { x: enemy.position.x, y: enemy.position.y };
+          const positions: Vector2[] = []
+          let direction = computeRandomDirection();
+
+          for (let i = 0; i < pathCount; ++i) {
+            if (rand(0, 1000) < 500) {
+              direction = computeRandomDirection();
+            }
+            const mx = currentPosition.x + direction.x;
+            const my = currentPosition.y + direction.y;
+
+            if (mapData.tilesData[mapData.map[my]?.[mx]?.tileMapDataId ?? OUTBOUNDED_INDEX]?.type === TileTypeEnum.WALL) {
+              continue;
+            }
+
+            currentPosition.x = mx;
+            currentPosition.y = my;
+
+            positions.push({ x: currentPosition.x, y: currentPosition.y });
+          }
+
+          enemy.path.positions = positions;
+          enemy.path.memory.canRemember = true;
+          enemy.path.memory.endTimestamp = Date.now() + enemy.path.memory.duration;
+        }
       }
     }
 
@@ -630,7 +659,7 @@ function moveEnemiesUsingManhattanAlgo(
     if (enemy.message !== null && Date.now() > enemy.message.memory.endTimestamp) {
       enemy.message = null;
     }
-    else if (rand(0, 10000) < 15) {
+    else if (rand(0, 10000) < 5) {
       const text = messages[rand(0, messages.length - 1)];
 
       if (text) {
@@ -650,7 +679,7 @@ function moveEnemiesUsingManhattanAlgo(
 
 const compass: CompassEnum[] = [CompassEnum.EAST, CompassEnum.SOUTH, CompassEnum.NORTH, CompassEnum.WEST];
 function computeRandomDirection(): Vector2 {
-  const compassDirection = compass[rand(0, compass.length)] ?? CompassEnum.NORTH;
+  const compassDirection = compass[rand(0, 1000) % compass.length] ?? CompassEnum.NORTH;
 
   switch (compassDirection) {
     case (CompassEnum.NORTH):
