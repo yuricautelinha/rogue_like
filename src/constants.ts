@@ -2,7 +2,7 @@ export const FACTOR = 80;
 export const WIDTH = 16 * FACTOR;
 export const HEIGHT = 9 * FACTOR;
 
-export const TILE_SIZE = 64;
+export const TILE_SIZE = 32;
 export const MAP_TILES_WIDTH = 128;
 export const MAP_TILES_HEIGHT = 128;
 

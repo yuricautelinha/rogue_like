@@ -1,10 +1,10 @@
 import { moveCamera } from "./camera.js";
 import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, messages, TILE_SIZE } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
-import { doMiniMap, drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
+import { drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
 import { type MapData, type Camera, type Entity, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum, type Vector2, type NpcStorage, type RGE_Canvas, type ObjectStorage, EntityEnum, type AmbientLighting, type WorldTime } from "./models.js";
 import { addEnemyBasedOnMousePosition, addObjectBasedOnMousePosition, drawEntitiesFromNpcStorage, drawEntitiesFromObjectStorage, drawEntity, getEntityStorageKey, moveEntity } from "./entity.js";
-import { clearCanvas, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage } from "./utils.js";
+import { clearCanvas, drawGrid, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage } from "./utils.js";
 import { initPlayer } from "./player.js";
 
 type GameLoopProps = {
@@ -45,7 +45,7 @@ async function main() {
 
   const worldTime: WorldTime = {
     time: 0,
-    dayLength: 60,
+    dayLength: 30,
   };
 
   const ambientLighting: AmbientLighting = {
@@ -97,9 +97,9 @@ async function main() {
   };
 
   miniMap.canvas.width = 200;
-  const mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
-  // const mapData = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite);
-  // loadMapFromLocalStorage(player, enemies, mapData);
+  //const mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
+  const mapData = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite);
+  loadMapFromLocalStorage(player, enemies, mapData);
   const miniMapData: MapData = { ...mapData, tileSize: miniMap.canvas.width / MAP_TILES_WIDTH };
 
   // TODO: Should do this when update map
@@ -180,9 +180,9 @@ async function main() {
         startWallPosition: { x: 5, y: 0 },
       };
       const m = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite);
-      player.viewDistance = 0;
       mapData.tilesData = m.tilesData;
       ambientLighting.modifier = false;
+      ambientLighting.value = 1;
     }
     else {
       const mapSprite: MapSprite = {
@@ -192,7 +192,6 @@ async function main() {
         startWallPosition: { x: 5, y: 4 },
       };
       const m = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite);
-      player.viewDistance = DEFAULT_PLAYER_VIEW_DISTANCE;
       mapData.tilesData = m.tilesData;
       ambientLighting.modifier = true;
     }
@@ -207,7 +206,7 @@ async function main() {
         enemies,
         DEFAULT_PLAYER_SPEED,
         gameSprites,
-        1,
+        10000,
         DEBUG
       )(event);
     } else {
@@ -291,14 +290,12 @@ function gameLoop(props: GameLoopProps) {
       directionalInputs,
       controlInputs,
       mapData,
-      miniMapData,
       enemies,
       objectStorage,
       playerObjectsStorage,
       worldTime,
       ambientLighting,
       rgeCanvas,
-      miniMap,
     } = props;
 
     const dt = (time - lastTime) / 1000;
@@ -308,12 +305,12 @@ function gameLoop(props: GameLoopProps) {
 
     const normalizedTimestamp = (worldTime.time % worldTime.dayLength) / worldTime.dayLength;
 
-    const offset = (4 / 24) * Math.PI * 2;
-    ambientLighting.value = ((1 - Math.cos(normalizedTimestamp * Math.PI * 2 - offset)) / 2);
     if (ambientLighting.modifier && player.isAlive) {
-      player.viewDistance = Math.floor(ambientLighting.value * (canvas.width / mapData.tileSize));
+      const offset = (4 / 24) * Math.PI * 2;
+      ambientLighting.value = (1 + Math.cos(normalizedTimestamp * Math.PI * 2 - offset)) / 2;
+      //player.viewDistance = Math.floor(ambientLighting.value * (canvas.width / mapData.tileSize));
     } else {
-      player.viewDistance = 0;
+      //player.viewDistance = 0;
     }
 
     const enemyAbovePlayer = enemies[getEntityStorageKey(player.position)]?.[0];
@@ -344,12 +341,12 @@ function gameLoop(props: GameLoopProps) {
     context.beginPath();
 
     clearCanvas("#000", rgeCanvas);
-    drawMap(camera, mapData, rgeCanvas);
+    drawMap(camera, mapData, ambientLighting, worldTime, rgeCanvas);
     drawEntitiesFromObjectStorage(camera, mapData, player, objectStorage, context, DEBUG);
     drawEntitiesFromNpcStorage(camera, mapData, player, enemies, context, DEBUG);
     drawEntity(player, camera, mapData, context, DEBUG);
     drawEntitiesFromObjectStorage(camera, mapData, player, playerObjectsStorage, context, DEBUG);
-    doMiniMap(player, miniMapData, miniMap);
+    //doMiniMap(player, miniMapData, miniMap);
 
 
     if (DEBUG) {
@@ -394,7 +391,7 @@ function gameLoop(props: GameLoopProps) {
     );
 
     if (DEBUG) {
-      //drawGrid(TILE_SIZE, camera, rgeCanvas, "#FFFFFFAA");
+      drawGrid(TILE_SIZE, camera, rgeCanvas, "#FFFFFFAA");
     }
 
     context.closePath();
