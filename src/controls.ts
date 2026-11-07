@@ -1,5 +1,6 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type DirectionKeyboardInput, CompassEnum, type Entity, normalizedDirection, type KeyboardInput, KeyboardInputTypeEnum } from "./models.js";
+import { type DirectionKeyboardInput, CompassEnum, type KeyboardInput, KeyboardInputTypeEnum } from "./models.js";
+import { compassDirections } from "./utils.js";
 
 const directionalKeyToCompassEnum: Record<string, CompassEnum> = {
   w: CompassEnum.NORTH,
@@ -13,11 +14,10 @@ const directionalKeyToCompassEnum: Record<string, CompassEnum> = {
 };
 
 export function setupKeyEvents(
-  player: Entity,
   directionalInputs: DirectionKeyboardInput[],
   controlInputs: KeyboardInput[]
 ): void {
-  let s = 0;
+  // let s = 0;
 
   window.addEventListener("blur", () => {
     directionalInputs.splice(0);
@@ -43,7 +43,7 @@ export function setupKeyEvents(
         addDirectionKeyboardInput({
           id: event.key,
           type: KeyboardInputTypeEnum.DIRECTIONAL,
-          direction: normalizedDirection[compassDirection]
+          direction: compassDirections[compassDirection]
         }, directionalInputs);
         break;
       case ('v'):
@@ -58,20 +58,20 @@ export function setupKeyEvents(
           type: KeyboardInputTypeEnum.IDLE,
         }, controlInputs);
         break;
-      case ('g'):
-        if (player.sprite) {
-          switch ((s++) % 2) {
-            case (0):
-              player.sprite.position.x = 0;
-              player.sprite.position.y = 1;
-              break;
-            case (1):
-              player.sprite.position.x = 4;
-              player.sprite.position.y = 1;
-              break;
-          };
-        }
-        break;
+      // case ('g'):
+      //   if (player.sprite) {
+      //     switch ((s++) % 2) {
+      //       case (0):
+      //         player.sprite.position.x = 0;
+      //         player.sprite.position.y = 1;
+      //         break;
+      //       case (1):
+      //         player.sprite.position.x = 4;
+      //         player.sprite.position.y = 1;
+      //         break;
+      //     };
+      //   }
+      // break;
     }
   });
 
@@ -94,7 +94,7 @@ export function setupKeyEvents(
         removeDirectionKeyboardInput({
           id: event.key,
           type: KeyboardInputTypeEnum.DIRECTIONAL,
-          direction: normalizedDirection[compassDirection]
+          direction: compassDirections[compassDirection]
         }, directionalInputs);
         break;
       case ('b'):

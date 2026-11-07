@@ -1,5 +1,6 @@
 import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE } from "./constants.js";
-import type { Camera, MapData, Entity, RGE_Canvas, NpcStorage, Vector2 } from "./models.js";
+import type { Camera, MapData, RGE_Canvas, EntityStorage, Vector2, PlayerEntity, CreatureEntity } from "./models.js";
+import { CompassEnum } from "./models.js";
 
 export function loadCanvas(elementId: string): RGE_Canvas {
   const canvas = document.getElementById(elementId);
@@ -101,7 +102,7 @@ export function saveMapToLocalStorage(mapData: MapData) {
   localStorage.setItem('map', JSON.stringify(mapData));
 }
 
-export function loadMapFromLocalStorage(player: Entity, enemiesStorage: NpcStorage, mapData: MapData) {
+export function loadMapFromLocalStorage(player: PlayerEntity, enemiesStorage: EntityStorage<CreatureEntity>, mapData: MapData) {
   const mapString = localStorage.getItem('map');
 
   if (!mapString) {
@@ -122,13 +123,13 @@ export function loadMapFromLocalStorage(player: Entity, enemiesStorage: NpcStora
 
     player.position.x = newMapData.spawnPosition.x;
     player.position.y = newMapData.spawnPosition.y;
-    player.body.x = player.position.x;
-    player.body.y = player.position.y;
+    player.movment.body.x = player.position.x;
+    player.movment.body.y = player.position.y;
 
-    player.memory = DEFAULT_PLAYER_MEMORY;
-    player.viewDistance = DEFAULT_PLAYER_VIEW_DISTANCE;
-    player.speed = DEFAULT_PLAYER_SPEED;
-    player.isAlive = true;
+    player.eyes.memory.duration = DEFAULT_PLAYER_MEMORY;
+    player.eyes.viewDistance = DEFAULT_PLAYER_VIEW_DISTANCE;
+    player.movment.speed = DEFAULT_PLAYER_SPEED;
+    player.health.isAlive = true;
 
     Object.values(enemiesStorage).forEach(enemies => enemies.splice(0, enemies.length));
   } catch (error) {
@@ -136,3 +137,25 @@ export function loadMapFromLocalStorage(player: Entity, enemiesStorage: NpcStora
     return;
   }
 }
+
+export const compassDirections: Record<CompassEnum, Vector2> = {
+  [CompassEnum.NORTH]: { x: 0, y: -1 },
+  [CompassEnum.NORTH_EAST]: { x: -1, y: -1 },
+  [CompassEnum.NORTH_WEST]: { x: 1, y: -1 },
+  [CompassEnum.SOUTH]: { x: 0, y: 1 },
+  [CompassEnum.SOUTH_EAST]: { x: -1, y: 1 },
+  [CompassEnum.SOUTH_WEST]: { x: 1, y: 1 },
+  [CompassEnum.WEST]: { x: -1, y: 0 },
+  [CompassEnum.EAST]: { x: 1, y: 0 },
+};
+
+export const directionToSpritePosition: Record<string, number> = {
+  [`0,-1`]: 0,
+  [`0,1`]: 2,
+  [`-1,0`]: 3,
+  [`1,0`]: 1,
+  [`1,-1`]: 1,
+  [`-1,-1`]: 3,
+  [`1,1`]: 1,
+  [`-1,1`]: 3,
+};

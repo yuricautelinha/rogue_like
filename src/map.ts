@@ -1,5 +1,5 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, normalizedDirection, type Vector2, type AmbientLighting, type WorldTime, type DayTimeColor, type RGBColor } from "./models.js";
+import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, type Vector2, type AmbientLighting, type WorldTime, type MapTimeColorPallete, type RGBColor, type PlayerEntity, type FireplaceEntity, type TorchEntity } from "./models.js";
 import { clearCanvas, rand, sleep } from "./utils.js";
 
 const camera: Camera = {
@@ -48,7 +48,7 @@ export function drawMap(
       const screenY = Math.round(y * tileSize + offsetY);
 
       context.drawImage(
-        mapSprite.spriteSheet.sprites,
+        mapSprite.spriteSheet.asset,
         tileData.sprite.position.x * tileData.sprite.spriteSheet.tileSize,
         tileData.sprite.position.y * tileData.sprite.spriteSheet.tileSize,
         tileData.sprite.spriteSheet.tileSize,
@@ -64,11 +64,12 @@ export function drawMap(
 
 export function applyLight(
   camera: Camera,
-  { map, mapSprite, tileSize, tilesData: tiles }: MapData,
+  mapData: MapData,
   ambientLighting: AmbientLighting,
   worldTime: WorldTime,
   { canvas, context }: RGE_Canvas,
 ): void {
+  const { map, mapSprite, tileSize, tilesData: tiles, timeColorPallete: tiomeColorPallete } = mapData;
   const tilesX = Math.ceil(canvas.width / tileSize) + 2;
   const tilesY = Math.ceil(canvas.height / tileSize) + 2;
 
@@ -80,7 +81,7 @@ export function applyLight(
 
   const revealedTileLight = Math.max(ambientLighting.value, ambientLighting.value + 0.3);
 
-  const { r, g, b } = getDayLightColor(worldTime);
+  const { r, g, b } = getDayLightColor(tiomeColorPallete, worldTime);
 
   for (let y = 0; y < tilesY; ++y) {
     for (let x = 0; x < tilesX; ++x) {
@@ -94,7 +95,7 @@ export function applyLight(
       const screenX = Math.round(x * tileSize + offsetX);
       const screenY = Math.round(y * tileSize + offsetY);
 
-      if (mapTile.visible && ambientLighting.modifier) {
+      if (mapTile.visible) {
         if (mapTile.visibleBySun) {
           context.fillStyle = `rgba(${r}, ${g}, ${b}, ${ambientLighting.value})`;
           context.fillRect(
@@ -113,7 +114,7 @@ export function applyLight(
           );
         }
       }
-      else if (ambientLighting.modifier) {
+      else {
         context.fillStyle = `rgba(0, 0, 0, ${revealedTileLight})`;
         context.fillRect(
           screenX,
@@ -121,22 +122,12 @@ export function applyLight(
           tileSize,
           tileSize,
         );
-      } else {
-        if (!mapTile.visible) {
-          context.fillStyle = `rgba(0, 0, 0, 1)`;
-          context.fillRect(
-            screenX,
-            screenY,
-            tileSize,
-            tileSize,
-          );
-        }
       }
     }
   }
 }
 
-export function getDayLightColor(worldTime: WorldTime): RGBColor {
+export function getDayLightColor(dayTimeColorPallette: MapTimeColorPallete[], worldTime: WorldTime): RGBColor {
   const t = (worldTime.time / worldTime.dayLength) % 1;
   let toIndex = dayTimeColorPallette.findIndex(c => t <= c.time);
   if (toIndex === OUTBOUNDED_INDEX) toIndex = 1;
@@ -153,19 +144,6 @@ export function getDayLightColor(worldTime: WorldTime): RGBColor {
     b: lerp(from.color.b, to.color.b, tx),
   }
 }
-
-const dayTimeColorPallette: DayTimeColor[] = [
-  { time: 0, color: { r: 0, g: 0, b: 0 } },
-  { time: 0.40, color: { r: 0, g: 0, b: 0 } },
-  //{ time: 0.5, r: 218, g: 120, b: 85 },
-  { time: 0.5, color: { r: 210, g: 100, b: 61 } },
-  { time: 0.6, color: { r: 210, g: 100, b: 61 } },
-  //{ time: 0.7, r: 245, g: 183, b: 128 },
-  { time: 0.7, color: { r: 119, g: 189, b: 233 } },
-  { time: 0.75, color: { r: 81, g: 170, b: 231, } },
-  { time: 0.8, color: { r: 23, g: 45, b: 80 } },
-  { time: 1, color: { r: 0, g: 0, b: 0 } },
-];
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
@@ -212,6 +190,8 @@ export function generateMapData(
   width: number,
   height: number,
   mapSprite: MapSprite,
+  ambientLighting: AmbientLighting,
+  tiomeColorPallete: MapTimeColorPallete[],
 ): MapData {
   const map: TileMap[][] =
     new Array(height).fill(0).map(() =>
@@ -236,7 +216,9 @@ export function generateMapData(
     tilesData: tiles,
     tileSize,
     mapSprite,
-    spawnPosition: { x: 0, y: 0 }
+    spawnPosition: { x: 0, y: 0 },
+    ambientLighting,
+    timeColorPallete: tiomeColorPallete
   };
 }
 
@@ -314,7 +296,7 @@ export async function generateMap(mapData: MapData): Promise<MapData> {
 }
 
 export function updateMapFog(
-  player: Entity,
+  player: PlayerEntity,
   camera: Camera,
   mapData: MapData,
   canvas: HTMLCanvasElement,
@@ -329,7 +311,7 @@ export function updateMapFog(
   const px = player.position.x;
   const py = player.position.y;
 
-  const facing = normalizedDirection[player.facing];
+  const facing = player.eyes.direction;
 
   for (let y = 0; y < tilesY; ++y) {
     for (let x = 0; x < tilesX; ++x) {
@@ -341,8 +323,8 @@ export function updateMapFog(
         continue;
       }
 
-      const isInFront = player.viewDistance === 0 && mx === px + facing.x && my === py + facing.y;
-      const isGoingTo = player.viewDistance === 0 && mx === px + player.direction.x && my === py + player.direction.y;
+      const isInFront = player.eyes.viewDistance === 0 && mx === px + facing.x && my === py + facing.y;
+      const isGoingTo = player.eyes.viewDistance === 0 && mx === px + player.movment.direction.x && my === py + player.movment.direction.y;
 
       mapTile.visible = isGoingTo;
       mapTile.revelead = mapTile.revelead || isGoingTo || isInFront;
@@ -352,14 +334,14 @@ export function updateMapFog(
         mapTile.reveleadTimestamp = Date.now();
       }
 
-      if (!mapTile.reveleadTimestamp || (Date.now() - mapTile.reveleadTimestamp) > player.memory) {
+      if (!mapTile.reveleadTimestamp || (Date.now() - mapTile.reveleadTimestamp) > player.eyes.memory.duration) {
         mapTile.revelead = false;
       }
     }
   }
 
-  for (let y = -player.viewDistance; y < player.viewDistance + 1; ++y) {
-    for (let x = -player.viewDistance; x < player.viewDistance + 1; ++x) {
+  for (let y = -player.eyes.viewDistance; y < player.eyes.viewDistance + 1; ++y) {
+    for (let x = -player.eyes.viewDistance; x < player.eyes.viewDistance + 1; ++x) {
       const dot = facing.x * x + facing.y * y;
 
       if (dot < 0) continue;
@@ -389,18 +371,18 @@ export function updateMapFog(
 }
 
 export function updateMapFogBasedOnObject(
-  player: Entity,
-  object: Entity,
+  player: PlayerEntity,
+  object: FireplaceEntity | TorchEntity,
   mapData: MapData,
 ) {
   const { map } = mapData;
 
-  const ox = object.position.x;
-  const oy = object.position.y;
-  const facing = normalizedDirection[player.facing];
+  const ox = Math.floor(object.position.x);
+  const oy = Math.floor(object.position.y);
+  const facing = player.eyes.direction;
 
-  for (let y = -object.viewDistance; y < object.viewDistance + 1; ++y) {
-    for (let x = -object.viewDistance; x < object.viewDistance + 1; ++x) {
+  for (let y = -object.light.distance; y < object.light.distance + 1; ++y) {
+    for (let x = -object.light.distance; x < object.light.distance + 1; ++x) {
       const mx = ox - x;
       const my = oy - y;
 
@@ -422,10 +404,6 @@ export function updateMapFogBasedOnObject(
       }
 
       const hasLightOfSight = validateLineOfSight(
-        mapData,
-        object.position,
-        { x: mx, y: my }
-      ) && validateLineOfSight(
         mapData,
         player.position,
         { x: mx, y: my },

@@ -8,6 +8,27 @@ export type Vector2 = {
   y: number;
 };
 
+export type WorldTime = {
+  time: number;
+  dayLength: number;
+};
+
+export type AmbientLighting = {
+  value: number;
+  modifier: boolean;
+};
+
+export type SpriteSheet = {
+  asset: HTMLImageElement;
+  tileSize: number;
+};
+
+export type Sprite = {
+  spriteSheet: SpriteSheet;
+  current: number;
+  positions: Vector2[];
+};
+
 export enum TileTypeEnum {
   GROUND,
   WALL
@@ -16,7 +37,7 @@ export enum TileTypeEnum {
 export type TileMapData = {
   id: number;
   type: TileTypeEnum;
-  sprite: Sprite;
+  sprite: TileMapSprite;
   color: string;
 };
 
@@ -36,6 +57,8 @@ export type MapData = {
   tilesData: TileMapData[];
   mapSprite: MapSprite;
   spawnPosition: Vector2;
+  ambientLighting: AmbientLighting;
+  timeColorPallete: MapTimeColorPallete[];
 };
 
 export type MapSprite = {
@@ -43,7 +66,11 @@ export type MapSprite = {
   tileTypeSpriteCount: number;
   startGroundPosition: Vector2;
   startWallPosition: Vector2;
+};
 
+export type TileMapSprite = {
+  spriteSheet: SpriteSheet;
+  position: Vector2;
 };
 
 export type Camera = {
@@ -64,78 +91,108 @@ export enum CompassEnum {
   SOUTH_WEST,
 };
 
-export const normalizedDirection: Record<CompassEnum, Vector2> = {
-  [CompassEnum.NORTH]: { x: 0, y: -1 },
-  [CompassEnum.NORTH_EAST]: { x: -1, y: -1 },
-  [CompassEnum.NORTH_WEST]: { x: 1, y: -1 },
-  [CompassEnum.SOUTH]: { x: 0, y: 1 },
-  [CompassEnum.SOUTH_EAST]: { x: -1, y: 1 },
-  [CompassEnum.SOUTH_WEST]: { x: 1, y: 1 },
-  [CompassEnum.WEST]: { x: -1, y: 0 },
-  [CompassEnum.EAST]: { x: 1, y: 0 },
-};
-
-export const directionToCompassMap: Record<string, CompassEnum> = {
-  [`(0,-1)`]: CompassEnum.NORTH,
-  [`(0,1)`]: CompassEnum.SOUTH,
-  [`(-1,0)`]: CompassEnum.WEST,
-  [`(1,0)`]: CompassEnum.EAST,
-  [`(1,-1)`]: CompassEnum.EAST,
-  [`(-1,-1)`]: CompassEnum.WEST,
-  [`(1,1)`]: CompassEnum.EAST,
-  [`(-1,1)`]: CompassEnum.WEST,
-};
-
-export type Message = {
-  id: number;
-  viewDistance: number;
-  position: Vector2;
-  talkedTimestamp: number;
-  durationTimestamp: number;
-  text: string;
-};
-
 export enum EntityEnum {
   PLAYER,
-  GOBLIN,
-  FIREPLACE,
-  TORCH
+  CREATURE,
+  OBJECT,
+  STATIC_OBJEECT,
 };
 
 export type Entity = {
-  id: EntityEnum;
-  isAlive: boolean;
+  id: number;
+  type: EntityEnum;
   color: string;
   position: Vector2;
+  spawnTimestamp: number;
+  sprite: Sprite;
+};
+
+export type Memory = {
+  duration: number;
+  endTimestamp: number;
+  canRemember: boolean;
+};
+
+export type HasMemory = {
+  memory: Memory;
+};
+
+export type Eyes = HasMemory & {
   direction: Vector2;
+  viewDistance: number;
+};
+
+export type HasEyes = {
+  eyes: Eyes;
+};
+
+export type Health = {
+  isAlive: boolean;
+  value: number;
+};
+
+export type HasHealth = {
+  health: Health;
+};
+
+export type Movment = {
   body: Vector2;
   speed: number;
-  facing: CompassEnum;
-  viewDistance: number;
-  memory: number;
-  spawnTimestamp: number;
-  sprite?: Sprite;
+  direction: Vector2;
 };
 
-export type NpcEntity = Entity & {
-  pathToFollow: Vector2[];
-  memoryTimestamp: number | null;
-  message: Message | null;
-}
-
-export type NpcStorage = Record<string, NpcEntity[]>;
-
-export type ObjectStorage = Record<string, Entity[]>;
-
-export type SpriteSheet = {
-  sprites: HTMLImageElement;
-  tileSize: number;
+export type CanMove = {
+  movment: Movment;
 };
 
-export type Sprite = {
-  spriteSheet: SpriteSheet;
+export type PathToFollow = HasMemory & {
+  positions: Vector2[];
+};
+
+export type CanFollow = {
+  path: PathToFollow;
+};
+
+export type Light = HasMemory & {
+  distance: number;
+};
+
+export type EmitsLight = {
+  light: Light;
+};
+
+export type Message = HasMemory & {
   position: Vector2;
+  text: string;
 };
+
+export type CanMessage = {
+  message: Message | null;
+};
+
+export type PlayerEntity = Entity
+  & HasEyes
+  & HasHealth
+  & CanMove
+  & { type: EntityEnum.PLAYER };
+
+export type CreatureEntity = Entity
+  & HasEyes
+  & HasHealth
+  & CanMove
+  & CanFollow
+  & CanMessage
+  & { type: EntityEnum.CREATURE };
+
+export type FireplaceEntity = Entity
+  & EmitsLight
+  & { type: EntityEnum.STATIC_OBJEECT };
+
+export type TorchEntity = Entity
+  & EmitsLight
+  & { type: EntityEnum.OBJECT };
+
+export type EntityStorage<T extends Entity> = Record<string, T[]>;
 
 export enum KeyboardInputTypeEnum {
   DIRECTIONAL,
@@ -146,30 +203,20 @@ export enum KeyboardInputTypeEnum {
 export type KeyboardInput = {
   id: string;
   type: KeyboardInputTypeEnum;
-}
+};
 
 export type DirectionKeyboardInput = KeyboardInput & {
   type: KeyboardInputTypeEnum.DIRECTIONAL;
   direction: Vector2;
 };
 
-export type WorldTime = {
-  time: number;
-  dayLength: number;
-};
-
-export type AmbientLighting = {
-  value: number;
-  modifier: boolean;
-}
-
 export type RGBColor = {
   r: number;
   g: number;
   b: number;
-}
+};
 
-export type DayTimeColor = {
+export type MapTimeColorPallete = {
   time: number;
   color: RGBColor;
-}
+};
