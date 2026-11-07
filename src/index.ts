@@ -1,7 +1,7 @@
 import { moveCamera } from "./camera.js";
 import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, messages, TILE_SIZE } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
-import { drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
+import { applyLight, doMiniMap, drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
 import { type MapData, type Camera, type Entity, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, normalizedDirection, KeyboardInputTypeEnum, type Vector2, type NpcStorage, type RGE_Canvas, type ObjectStorage, EntityEnum, type AmbientLighting, type WorldTime } from "./models.js";
 import { addEnemyBasedOnMousePosition, addObjectBasedOnMousePosition, drawEntitiesFromNpcStorage, drawEntitiesFromObjectStorage, drawEntity, getEntityStorageKey, moveEntity } from "./entity.js";
 import { clearCanvas, drawGrid, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage } from "./utils.js";
@@ -45,7 +45,7 @@ async function main() {
 
   const worldTime: WorldTime = {
     time: 0,
-    dayLength: 30,
+    dayLength: 60 * 10,
   };
 
   const ambientLighting: AmbientLighting = {
@@ -97,9 +97,9 @@ async function main() {
   };
 
   miniMap.canvas.width = 200;
-  //const mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
-  const mapData = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite);
-  loadMapFromLocalStorage(player, enemies, mapData);
+  const mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite));
+  // const mapData = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite);
+  // loadMapFromLocalStorage(player, enemies, mapData);
   const miniMapData: MapData = { ...mapData, tileSize: miniMap.canvas.width / MAP_TILES_WIDTH };
 
   // TODO: Should do this when update map
@@ -183,6 +183,7 @@ async function main() {
       mapData.tilesData = m.tilesData;
       ambientLighting.modifier = false;
       ambientLighting.value = 1;
+      player.viewDistance = -1;
     }
     else {
       const mapSprite: MapSprite = {
@@ -194,6 +195,7 @@ async function main() {
       const m = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite);
       mapData.tilesData = m.tilesData;
       ambientLighting.modifier = true;
+      player.viewDistance = DEFAULT_PLAYER_VIEW_DISTANCE;
     }
   });
 
@@ -206,7 +208,7 @@ async function main() {
         enemies,
         DEFAULT_PLAYER_SPEED,
         gameSprites,
-        10000,
+        3,
         DEBUG
       )(event);
     } else {
@@ -296,6 +298,8 @@ function gameLoop(props: GameLoopProps) {
       worldTime,
       ambientLighting,
       rgeCanvas,
+      miniMap,
+      miniMapData
     } = props;
 
     const dt = (time - lastTime) / 1000;
@@ -306,7 +310,7 @@ function gameLoop(props: GameLoopProps) {
     const normalizedTimestamp = (worldTime.time % worldTime.dayLength) / worldTime.dayLength;
 
     if (ambientLighting.modifier && player.isAlive) {
-      const offset = (4 / 24) * Math.PI * 2;
+      const offset = (3 / 24) * Math.PI * 2;
       ambientLighting.value = (1 + Math.cos(normalizedTimestamp * Math.PI * 2 - offset)) / 2;
       //player.viewDistance = Math.floor(ambientLighting.value * (canvas.width / mapData.tileSize));
     } else {
@@ -341,12 +345,13 @@ function gameLoop(props: GameLoopProps) {
     context.beginPath();
 
     clearCanvas("#000", rgeCanvas);
-    drawMap(camera, mapData, ambientLighting, worldTime, rgeCanvas);
+    drawMap(camera, mapData, rgeCanvas);
     drawEntitiesFromObjectStorage(camera, mapData, player, objectStorage, context, DEBUG);
     drawEntitiesFromNpcStorage(camera, mapData, player, enemies, context, DEBUG);
     drawEntity(player, camera, mapData, context, DEBUG);
     drawEntitiesFromObjectStorage(camera, mapData, player, playerObjectsStorage, context, DEBUG);
-    //doMiniMap(player, miniMapData, miniMap);
+    applyLight(camera, mapData, ambientLighting, worldTime, rgeCanvas);
+    doMiniMap(player, miniMapData, miniMap);
 
 
     if (DEBUG) {
@@ -380,14 +385,14 @@ function gameLoop(props: GameLoopProps) {
     const day = ((totalDays % 30) + 1).toFixed(0).padStart(2, '0');
     const month = Math.floor(((totalDays / 30) % 12) + 1).toFixed(0).padStart(2, '0');
     const year = Math.floor(totalDays / (30 * 12)).toFixed(0).padStart(2, '0');;
-    const message = `Day ${day}/${month}/${year} ${hours}:${minutes}h`;
+    const dateTime = `${day}/${month}/${year} ${hours}:${minutes}h`;
 
-    context.font = "60px bold sans-serif";
+    context.font = "30px bold sans-serif";
     context.fillStyle = "WHITE";
     context.fillText(
-      message,
-      mapData.tileSize,
-      mapData.tileSize,
+      dateTime,
+      50,
+      50,
     );
 
     if (DEBUG) {

@@ -1,5 +1,5 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, normalizedDirection, type Vector2, type AmbientLighting, type WorldTime } from "./models.js";
+import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, normalizedDirection, type Vector2, type AmbientLighting, type WorldTime, type DayTimeColor, type RGBColor } from "./models.js";
 import { clearCanvas, rand, sleep } from "./utils.js";
 
 const camera: Camera = {
@@ -24,22 +24,16 @@ export function doMiniMap(player: Entity, mapData: MapData, rgeCanvas: RGE_Canva
 export function drawMap(
   camera: Camera,
   { map, mapSprite, tileSize, tilesData: tiles }: MapData,
-  ambientLighting: AmbientLighting,
-  worldTime: WorldTime,
   { canvas, context }: RGE_Canvas,
 ): void {
-  const tilesX = Math.ceil(canvas.width / tileSize) + 1;
-  const tilesY = Math.ceil(canvas.height / tileSize) + 1;
+  const tilesX = Math.ceil(canvas.width / tileSize) + 2;
+  const tilesY = Math.ceil(canvas.height / tileSize) + 2;
 
   const cx = Math.floor(camera.position.x);
   const cy = Math.floor(camera.position.y);
 
   const offsetX = -(camera.position.x - cx) * tileSize;
   const offsetY = -(camera.position.y - cy) * tileSize;
-
-  const dayLight = Math.floor(ambientLighting.value * 255);
-  const visibleTileLight = dayLight.toString(16).padStart(2, '0');
-  const revealedTileLight = (dayLight + 10).toString(16).padStart(2, '0');
 
   for (let y = 0; y < tilesY; ++y) {
     for (let x = 0; x < tilesX; ++x) {
@@ -64,24 +58,53 @@ export function drawMap(
         tileSize,
         tileSize,
       );
+    }
+  }
+}
 
-      if (mapTile.visible) {
+export function applyLight(
+  camera: Camera,
+  { map, mapSprite, tileSize, tilesData: tiles }: MapData,
+  ambientLighting: AmbientLighting,
+  worldTime: WorldTime,
+  { canvas, context }: RGE_Canvas,
+): void {
+  const tilesX = Math.ceil(canvas.width / tileSize) + 2;
+  const tilesY = Math.ceil(canvas.height / tileSize) + 2;
+
+  const cx = Math.floor(camera.position.x);
+  const cy = Math.floor(camera.position.y);
+
+  const offsetX = -(camera.position.x - cx) * tileSize;
+  const offsetY = -(camera.position.y - cy) * tileSize;
+
+  const revealedTileLight = Math.max(ambientLighting.value, ambientLighting.value + 0.3);
+
+  const { r, g, b } = getDayLightColor(worldTime);
+
+  for (let y = 0; y < tilesY; ++y) {
+    for (let x = 0; x < tilesX; ++x) {
+      const mapTile = map?.[y + cy]?.[x + cx] ?? wallTileMap(mapSprite, mapSprite.startWallPosition.x + 1);
+      const tileData = tiles[mapTile.tileMapDataId];
+
+      if (!tileData || !mapTile.revelead) {
+        continue;
+      }
+
+      const screenX = Math.round(x * tileSize + offsetX);
+      const screenY = Math.round(y * tileSize + offsetY);
+
+      if (mapTile.visible && ambientLighting.modifier) {
         if (mapTile.visibleBySun) {
-
-          const t = (worldTime.time / worldTime.dayLength) % 1;
-          let fromIndex = dayTimeColorPallette.findIndex(c => t <= c.time);
-          if (fromIndex === OUTBOUNDED_INDEX) fromIndex = 0;
-          const toIndex = (fromIndex + 1) % dayTimeColorPallette.length;
-
-          const from = dayTimeColorPallette[fromIndex] ?? { time: 0, r: 0, g: 0, b: 0 };
-          const to = dayTimeColorPallette[toIndex] ?? { time: 0, r: 0, g: 0, b: 0 };
-          //console.log(t, from.r, to.r);
-          const tx = (t - from.time) / (to.time - from.time);
-          const r = lerp(from.r, to.r, tx);
-          const g = lerp(from.g, to.g, tx);
-          const b = lerp(from.b, to.b, tx);
-
-          context.fillStyle = `rgba(${r}, ${g}, ${b})`;
+          context.fillStyle = `rgba(${r}, ${g}, ${b}, ${ambientLighting.value})`;
+          context.fillRect(
+            screenX,
+            screenY,
+            tileSize,
+            tileSize,
+          );
+        } else {
+          context.fillStyle = `rgba(${r}, ${g}, ${b}, 0.1)`;
           context.fillRect(
             screenX,
             screenY,
@@ -90,26 +113,58 @@ export function drawMap(
           );
         }
       }
-      else {
-        context.fillStyle = "#000000" + revealedTileLight;
+      else if (ambientLighting.modifier) {
+        context.fillStyle = `rgba(0, 0, 0, ${revealedTileLight})`;
         context.fillRect(
           screenX,
           screenY,
           tileSize,
           tileSize,
         );
+      } else {
+        if (!mapTile.visible) {
+          context.fillStyle = `rgba(0, 0, 0, 1)`;
+          context.fillRect(
+            screenX,
+            screenY,
+            tileSize,
+            tileSize,
+          );
+        }
       }
     }
   }
 }
 
-const dayTimeColorPallette: { time: number, r: number, g: number, b: number }[] = [
-  { time: 0, r: 0, g: 0, b: 0 },
-  { time: 0.1, r: 0, g: 0, b: 0 },
-  { time: 0.5, r: 206, g: 128, b: 42 },
-  { time: 0.6, r: 255, g: 255, b: 255 },
-  { time: 0.8, r: 42, g: 67, b: 206 },
-  { time: 1, r: 0, g: 0, b: 0 },
+export function getDayLightColor(worldTime: WorldTime): RGBColor {
+  const t = (worldTime.time / worldTime.dayLength) % 1;
+  let toIndex = dayTimeColorPallette.findIndex(c => t <= c.time);
+  if (toIndex === OUTBOUNDED_INDEX) toIndex = 1;
+  const fromIndex = toIndex - 1;
+
+  const to = dayTimeColorPallette[toIndex] ?? { time: 0, color: { r: 0, g: 0, b: 0 } };
+  const from = dayTimeColorPallette[fromIndex] ?? { time: 0, color: { r: 0, g: 0, b: 0 } };
+
+  const tx = (t - from.time) / (to.time - from.time);
+
+  return {
+    r: lerp(from.color.r, to.color.r, tx),
+    g: lerp(from.color.g, to.color.g, tx),
+    b: lerp(from.color.b, to.color.b, tx),
+  }
+}
+
+const dayTimeColorPallette: DayTimeColor[] = [
+  { time: 0, color: { r: 0, g: 0, b: 0 } },
+  { time: 0.40, color: { r: 0, g: 0, b: 0 } },
+  //{ time: 0.5, r: 218, g: 120, b: 85 },
+  { time: 0.5, color: { r: 210, g: 100, b: 61 } },
+  { time: 0.6, color: { r: 210, g: 100, b: 61 } },
+  //{ time: 0.7, r: 245, g: 183, b: 128 },
+  { time: 0.7, color: { r: 119, g: 189, b: 233 } },
+  { time: 0.75, color: { r: 81, g: 170, b: 231, } },
+  { time: 0.8, color: { r: 23, g: 45, b: 80 } },
+  { time: 1, color: { r: 0, g: 0, b: 0 } },
 ];
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -377,26 +432,10 @@ export function updateMapFogBasedOnObject(
       );
 
       if (hasLightOfSight) {
-        let visibleBefore = mapTile.visible;
         mapTile.visible = true;
         mapTile.revelead = true;
         mapTile.visibleBySun = false;
         mapTile.reveleadTimestamp = Date.now();
-
-        if (!visibleBefore) {
-          if (x === -object.viewDistance) {
-            mapTile.visible = false;
-          }
-          else if (x === object.viewDistance) {
-            mapTile.visible = false;
-          }
-          else if (y === -object.viewDistance) {
-            mapTile.visible = false;
-          }
-          else if (y === object.viewDistance) {
-            mapTile.visible = false;
-          }
-        }
       }
     }
   }

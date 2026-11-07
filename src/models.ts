@@ -162,3 +162,14 @@ export type AmbientLighting = {
   value: number;
   modifier: boolean;
 }
+
+export type RGBColor = {
+  r: number;
+  g: number;
+  b: number;
+}
+
+export type DayTimeColor = {
+  time: number;
+  color: RGBColor;
+}
