@@ -2,7 +2,7 @@ import { moveCamera } from "./camera.js";
 import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, messages, OUTBOUNDED_INDEX, TILE_SIZE } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
 import { applyLight, doMiniMap, drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
-import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, type EntityStorage, EntityEnum, type AmbientLighting, type WorldTime, type CreatureEntity, type FireplaceEntity, type TorchEntity, type PlayerEntity, type MapTimeColorPallete, TileTypeEnum } from "./models.js";
+import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, type EntityStorage, EntityEnum, type AmbientLighting, type WorldTime, type CreatureEntity, type FireplaceEntity, type TorchEntity, type PlayerEntity, type MapTimeColorPallete, TileTypeEnum, type House } from "./models.js";
 import { addEntityBasedOnMousePosition, drawEntitiesFromNpcStorage, drawEntitiesFromObjectStorage, drawEntityOnPosition, getEntityStorageKey, moveEntity } from "./entity.js";
 import { clearCanvas, drawGrid, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage } from "./utils.js";
 import { initPlayer } from "./player.js";
@@ -45,7 +45,7 @@ async function main() {
 
   const worldTime: WorldTime = {
     time: 0,
-    dayLength: 60 * 5,
+    dayLength: 30,
   };
 
   const ambientLighting: AmbientLighting = {
@@ -89,6 +89,68 @@ async function main() {
       body: { x: 0, y: 0, },
       direction: { x: 0, y: 0, },
       speed: DEFAULT_PLAYER_SPEED,
+    },
+  };
+
+  const house: House = {
+    spriteSheet: gameSprites,
+    position: { x: 10, y: 10 },
+    size: { x: 5, y: 5 },
+    doorPosition: { x: 1, y: 4 },
+    bottomSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 2, y: 5 }, { x: 3, y: 5 }, { x: 4, y: 5 }, { x: 5, y: 5 }, { x: 6, y: 5 }],
+    },
+    topSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 6, y: 6 }, { x: 7, y: 6 }],
+    },
+    leftBottomSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 0, y: 5 }],
+    },
+    rightBottomSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 1, y: 5 }],
+    },
+    leftSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 2, y: 6 }, { x: 3, y: 6 }],
+    },
+    rightSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 4, y: 6 }, { x: 5, y: 6 }],
+    },
+    leftTopSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 7, y: 5 }],
+    },
+    rightTopSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 8, y: 5 }],
+    },
+    floorSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }, { x: 4, y: 0 }],
+    },
+    leftCeilSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 0, y: 6 }],
+    },
+    rightCeilSprites: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 1, y: 6 }],
     },
   };
 
@@ -369,16 +431,21 @@ async function main() {
   };
 
   initPlayer(player, mapData);
+  house.position.x = player.position.x + 3;
+  house.position.y = player.position.y + 3;
+  house.doorPosition.x = house.doorPosition.x + house.position.x;
+  house.doorPosition.y = house.position.y + house.doorPosition.y;
+  console.log(house);
   setupKeyEvents(directionalInputs, controlInputs);
-  requestAnimationFrame(gameLoop(gameLoopProps));
+  requestAnimationFrame(gameLoop(gameLoopProps, house));
 };
 
 let lastTime = 0;
-function gameLoop(props: GameLoopProps) {
+function gameLoop(props: GameLoopProps, house: House) {
   const { canvas, context } = props.rgeCanvas;
 
   return function(time: number) {
-    requestAnimationFrame(gameLoop(props));
+    requestAnimationFrame(gameLoop(props, house));
 
     if (PAUSED) {
       return;
@@ -447,6 +514,7 @@ function gameLoop(props: GameLoopProps) {
     drawEntitiesFromNpcStorage(camera, mapData, player, enemies, context, DEBUG);
     drawEntityOnPosition(camera, player.movment.body, player, mapData.tileSize, context, DEBUG);
     drawEntitiesFromObjectStorage(camera, mapData, player, playerObjectsStorage, context, DEBUG);
+    drawHouse(camera, house, mapData.tileSize, context);
     applyLight(camera, mapData, ambientLighting, worldTime, rgeCanvas);
     doMiniMap(player, miniMapData, miniMap);
 
@@ -488,6 +556,194 @@ function gameLoop(props: GameLoopProps) {
 
     context.closePath();
   }
+}
+
+function drawHouse(camera: Camera, house: House, tileSize: number, context: CanvasRenderingContext2D) {
+  const hx = (house.position.x - camera.position.x) * tileSize;
+  const hy = (house.position.y - camera.position.y) * tileSize;
+
+  const hw = house.size.x - 1;
+  const hh = house.size.y - 1;
+
+  const topSpritePosition = getOrThrow(house.topSprites.positions, house.topSprites.current);
+  const leftTopSpritePosition = getOrThrow(house.leftTopSprites.positions, house.leftTopSprites.current);
+  const rightTopSpritePosition = getOrThrow(house.rightTopSprites.positions, house.rightTopSprites.current);
+
+  const bottomSpritePosition = getOrThrow(house.bottomSprites.positions, house.bottomSprites.current);
+  const leftBottomSpritePosition = getOrThrow(house.leftBottomSprites.positions, house.leftBottomSprites.current);
+  const rightBottomSpritePosition = getOrThrow(house.rightBottomSprites.positions, house.rightBottomSprites.current);
+
+  const leftCeilSpritePosition = getOrThrow(house.leftCeilSprites.positions, house.leftCeilSprites.current);
+  const rightCeilSpritePosition = getOrThrow(house.rightCeilSprites.positions, house.rightCeilSprites.current);
+
+  const floorSpritePosition = getOrThrow(house.floorSprites.positions, house.floorSprites.current);
+  const leftSpritePosition = getOrThrow(house.leftSprites.positions, house.leftSprites.current);
+  const rightSpritePosition = getOrThrow(house.rightSprites.positions, house.rightSprites.current);
+
+  context.drawImage(
+    house.spriteSheet.asset,
+    leftTopSpritePosition.x * house.spriteSheet.tileSize,
+    leftTopSpritePosition.y * house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    hx,
+    hy,
+    tileSize,
+    tileSize
+  );
+
+  context.drawImage(
+    house.spriteSheet.asset,
+    leftBottomSpritePosition.x * house.spriteSheet.tileSize,
+    leftBottomSpritePosition.y * house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    hx,
+    hy + hh * tileSize,
+    tileSize,
+    tileSize
+  );
+
+  context.drawImage(
+    house.spriteSheet.asset,
+    rightTopSpritePosition.x * house.spriteSheet.tileSize,
+    rightTopSpritePosition.y * house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    hx + hw * tileSize,
+    hy,
+    tileSize,
+    tileSize
+  );
+
+  context.drawImage(
+    house.spriteSheet.asset,
+    rightBottomSpritePosition.x * house.spriteSheet.tileSize,
+    rightBottomSpritePosition.y * house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    hx + hw * tileSize,
+    hy + hh * tileSize,
+    tileSize,
+    tileSize
+  );
+
+  context.drawImage(
+    house.spriteSheet.asset,
+    leftCeilSpritePosition.x * house.spriteSheet.tileSize,
+    leftCeilSpritePosition.y * house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    hx,
+    hy + (hh - 1) * tileSize,
+    tileSize,
+    tileSize
+  );
+
+  context.drawImage(
+    house.spriteSheet.asset,
+    rightCeilSpritePosition.x * house.spriteSheet.tileSize,
+    rightCeilSpritePosition.y * house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    house.spriteSheet.tileSize,
+    hx + hw * tileSize,
+    hy + (hh - 1) * tileSize,
+    tileSize,
+    tileSize
+  );
+
+  for (let y = 1; y < hh + 1; ++y) {
+    if (y < hh) {
+      context.drawImage(
+        house.spriteSheet.asset,
+        leftSpritePosition.x * house.spriteSheet.tileSize,
+        leftSpritePosition.y * house.spriteSheet.tileSize,
+        house.spriteSheet.tileSize,
+        house.spriteSheet.tileSize,
+        hx,
+        hy + y * tileSize,
+        tileSize,
+        tileSize
+      );
+
+      context.drawImage(
+        house.spriteSheet.asset,
+        rightSpritePosition.x * house.spriteSheet.tileSize,
+        rightSpritePosition.y * house.spriteSheet.tileSize,
+        house.spriteSheet.tileSize,
+        house.spriteSheet.tileSize,
+        hx + hw * tileSize,
+        hy + y * tileSize,
+        tileSize,
+        tileSize
+      );
+    }
+
+    for (let x = 1; x < hw; ++x) {
+      if (y === hh) {
+        context.drawImage(
+          house.spriteSheet.asset,
+          topSpritePosition.x * house.spriteSheet.tileSize,
+          topSpritePosition.y * house.spriteSheet.tileSize,
+          house.spriteSheet.tileSize,
+          house.spriteSheet.tileSize,
+          hx + x * tileSize,
+          hy,
+          tileSize,
+          tileSize
+        );
+
+        context.drawImage(
+          house.spriteSheet.asset,
+          bottomSpritePosition.x * house.spriteSheet.tileSize,
+          bottomSpritePosition.y * house.spriteSheet.tileSize,
+          house.spriteSheet.tileSize,
+          house.spriteSheet.tileSize,
+          hx + x * tileSize,
+          hy + hh * tileSize,
+          tileSize,
+          tileSize
+        );
+      }
+      else {
+        context.drawImage(
+          house.spriteSheet.asset,
+          floorSpritePosition.x * house.spriteSheet.tileSize,
+          floorSpritePosition.y * house.spriteSheet.tileSize,
+          house.spriteSheet.tileSize,
+          house.spriteSheet.tileSize,
+          hx + x * tileSize,
+          hy + y * tileSize,
+          tileSize,
+          tileSize
+        );
+      }
+
+      if ((house.position.x + x) === house.doorPosition.x && (house.position.y + y) === house.doorPosition.y) {
+        context.drawImage(
+          house.spriteSheet.asset,
+          floorSpritePosition.x * house.spriteSheet.tileSize,
+          floorSpritePosition.y * house.spriteSheet.tileSize,
+          house.spriteSheet.tileSize,
+          house.spriteSheet.tileSize,
+          hx + x * tileSize,
+          hy + y * tileSize,
+          tileSize,
+          tileSize
+        );
+      }
+    }
+  }
+}
+
+function getOrThrow<T>(arr: T[], index: number): T {
+  const value = arr[index];
+
+  if (!value) {
+    throw new Error("FUUUCK");
+  }
+
+  return value;
 }
 
 function doObjects(player: PlayerEntity, objectsStorage: EntityStorage<FireplaceEntity | TorchEntity>, mapData: MapData) {

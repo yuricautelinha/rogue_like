@@ -220,3 +220,21 @@ export type MapTimeColorPallete = {
   time: number;
   color: RGBColor;
 };
+
+export type House = {
+  spriteSheet: SpriteSheet;
+  position: Vector2;
+  size: Vector2;
+  doorPosition: Vector2;
+  topSprites: Sprite;
+  bottomSprites: Sprite;
+  leftSprites: Sprite;
+  rightSprites: Sprite;
+  floorSprites: Sprite;
+  leftTopSprites: Sprite;
+  rightTopSprites: Sprite;
+  leftBottomSprites: Sprite;
+  rightBottomSprites: Sprite;
+  leftCeilSprites: Sprite;
+  rightCeilSprites: Sprite;
+};
