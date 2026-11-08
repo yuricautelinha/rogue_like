@@ -31,13 +31,13 @@ export type Sprite = {
 
 export enum TileTypeEnum {
   GROUND,
-  WALL
+  WALL,
+  DOOR,
 };
 
 export type TileMapData = {
-  id: number;
   type: TileTypeEnum;
-  sprite: TileMapSprite;
+  position: Vector2;
   color: string;
 };
 
@@ -47,6 +47,7 @@ export type TileMap = {
   visibleBySun: boolean;
   revelead: boolean;
   reveleadTimestamp: number | null;
+  canWalk: boolean;
 };
 
 export type MapData = {
@@ -66,11 +67,7 @@ export type MapSprite = {
   tileTypeSpriteCount: number;
   startGroundPosition: Vector2;
   startWallPosition: Vector2;
-};
-
-export type TileMapSprite = {
-  spriteSheet: SpriteSheet;
-  position: Vector2;
+  startWallIndex: number;
 };
 
 export type Camera = {
@@ -221,20 +218,28 @@ export type MapTimeColorPallete = {
   color: RGBColor;
 };
 
+export type HouseTileData = {
+  count: number;
+  startIndex: number;
+};
+
+export type HouseData = {
+  top: HouseTileData;
+  bottom: HouseTileData;
+  left: HouseTileData;
+  right: HouseTileData;
+  leftTop: HouseTileData;
+  rightTop: HouseTileData;
+  leftBottom: HouseTileData;
+  rightBottom: HouseTileData;
+  leftCeil: HouseTileData;
+  rightCeil: HouseTileData;
+  floor: HouseTileData;
+  door: HouseTileData;
+};
+
 export type House = {
-  spriteSheet: SpriteSheet;
   position: Vector2;
   size: Vector2;
   doorPosition: Vector2;
-  topSprites: Sprite;
-  bottomSprites: Sprite;
-  leftSprites: Sprite;
-  rightSprites: Sprite;
-  floorSprites: Sprite;
-  leftTopSprites: Sprite;
-  rightTopSprites: Sprite;
-  leftBottomSprites: Sprite;
-  rightBottomSprites: Sprite;
-  leftCeilSprites: Sprite;
-  rightCeilSprites: Sprite;
 };

@@ -1,16 +1,17 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
 import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, type Vector2, type AmbientLighting, type WorldTime, type MapTimeColorPallete, type RGBColor, type PlayerEntity, type FireplaceEntity, type TorchEntity } from "./models.js";
-import { clearCanvas, rand, sleep } from "./utils.js";
+import { clearCanvas, getOrThrow, lerp, rand, sleep } from "./utils.js";
 
-const camera: Camera = {
+const miniMapCamera: Camera = {
   direction: { x: 0, y: 0 },
   freelook: false,
   position: { x: 0, y: 0 },
   speed: 0,
 }
+
 export function doMiniMap(player: Entity, mapData: MapData, rgeCanvas: RGE_Canvas) {
   clearCanvas("#000", rgeCanvas);
-  drawMapAsShapes(camera, mapData, rgeCanvas);
+  drawMapAsShapes(miniMapCamera, mapData, rgeCanvas);
 
   rgeCanvas.context.fillStyle = "RED";
   rgeCanvas.context.fillRect(
@@ -23,9 +24,11 @@ export function doMiniMap(player: Entity, mapData: MapData, rgeCanvas: RGE_Canva
 
 export function drawMap(
   camera: Camera,
-  { map, mapSprite, tileSize, tilesData: tiles }: MapData,
-  { canvas, context }: RGE_Canvas,
+  mapData: MapData,
+  rgeCanvas: RGE_Canvas,
 ): void {
+  const { canvas, context } = rgeCanvas;
+  const { map, mapSprite, tileSize, tilesData: tiles } = mapData;
   const tilesX = Math.ceil(canvas.width / tileSize) + 2;
   const tilesY = Math.ceil(canvas.height / tileSize) + 2;
 
@@ -47,12 +50,30 @@ export function drawMap(
       const screenX = Math.round(x * tileSize + offsetX);
       const screenY = Math.round(y * tileSize + offsetY);
 
+      if (tileData.type === TileTypeEnum.WALL || tileData.type === TileTypeEnum.DOOR) {
+        const spritePosition = getOrThrow(tiles, 0).position;
+
+        context.drawImage(
+          mapSprite.spriteSheet.asset,
+          spritePosition.x * mapSprite.spriteSheet.tileSize,
+          spritePosition.y * mapSprite.spriteSheet.tileSize,
+          mapSprite.spriteSheet.tileSize,
+          mapSprite.spriteSheet.tileSize,
+          screenX,
+          screenY,
+          tileSize,
+          tileSize,
+        );
+      }
+
+      const spritePosition = tileData.position;
+
       context.drawImage(
         mapSprite.spriteSheet.asset,
-        tileData.sprite.position.x * tileData.sprite.spriteSheet.tileSize,
-        tileData.sprite.position.y * tileData.sprite.spriteSheet.tileSize,
-        tileData.sprite.spriteSheet.tileSize,
-        tileData.sprite.spriteSheet.tileSize,
+        spritePosition.x * mapSprite.spriteSheet.tileSize,
+        spritePosition.y * mapSprite.spriteSheet.tileSize,
+        mapSprite.spriteSheet.tileSize,
+        mapSprite.spriteSheet.tileSize,
         screenX,
         screenY,
         tileSize,
@@ -130,9 +151,12 @@ export function applyLight(
 export function getDayLightColor(dayTimeColorPallette: MapTimeColorPallete[], worldTime: WorldTime): RGBColor {
   const t = (worldTime.time / worldTime.dayLength) % 1;
   let toIndex = dayTimeColorPallette.findIndex(c => t <= c.time);
-  if (toIndex === OUTBOUNDED_INDEX) toIndex = 1;
-  const fromIndex = toIndex - 1;
 
+  if (toIndex === OUTBOUNDED_INDEX) {
+    toIndex = 1;
+  }
+
+  const fromIndex = toIndex - 1;
   const to = dayTimeColorPallette[toIndex] ?? { time: 0, color: { r: 0, g: 0, b: 0 } };
   const from = dayTimeColorPallette[fromIndex] ?? { time: 0, color: { r: 0, g: 0, b: 0 } };
 
@@ -144,8 +168,6 @@ export function getDayLightColor(dayTimeColorPallette: MapTimeColorPallete[], wo
     b: lerp(from.color.b, to.color.b, tx),
   }
 }
-
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 export function drawMapAsShapes(
   camera: Camera,
@@ -206,7 +228,43 @@ export function generateMapData(
     .concat(
       new Array(mapSprite.tileTypeSpriteCount)
         .fill(null)
+        .map((_, index: number): TileMapData => ({
+          type: TileTypeEnum.GROUND,
+          position: { x: index + mapSprite.startGroundPosition.x, y: 0 },
+          color: "GREEN"
+        }))
+    )
+    .concat(
+      new Array(mapSprite.tileTypeSpriteCount)
+        .fill(null)
         .map((_, index: number): TileMapData => wallTileMapData(index, mapSprite))
+    )
+    .concat(
+      new Array(9)
+        .fill(null)
+        .map((_, index: number): TileMapData => ({
+          type: TileTypeEnum.WALL,
+          position: { x: index, y: 5 },
+          color: "YELLOW",
+        }))
+    )
+    .concat(
+      new Array(8)
+        .fill(null)
+        .map((_, index: number): TileMapData => ({
+          type: TileTypeEnum.WALL,
+          position: { x: index, y: 6 },
+          color: "YELLOW",
+        }))
+    ).concat(
+      new Array(2)
+        .fill(null)
+        .map((_, index: number): TileMapData => ({
+          type: TileTypeEnum.DOOR,
+          position: { x: index, y: 7 },
+          color: "BROWN",
+        }))
+
     );
 
   return {
@@ -238,6 +296,7 @@ export async function generateMap(mapData: MapData): Promise<MapData> {
 
   if (tile) {
     tile.tileMapDataId = rand(0, mapSprite.tileTypeSpriteCount - 1);
+    tile.canWalk = true;
   }
 
   const time = Date.now();
@@ -276,6 +335,7 @@ export async function generateMap(mapData: MapData): Promise<MapData> {
 
     if (tile && tiles[tile.tileMapDataId]?.type === TileTypeEnum.WALL) {
       tile.tileMapDataId = rand(0, mapSprite.tileTypeSpriteCount - 1);
+      tile.canWalk = true;
       n--;
     }
 
@@ -353,11 +413,11 @@ export function updateMapFog(
         continue;
       }
 
-      const hasLightOfSight = validateLineOfSight(
+      const hasLightOfSight = getLineOfSightPath(
         mapData,
         player.position,
         { x: mx, y: my }
-      );
+      ).length > 0;
 
       if (hasLightOfSight) {
         const dot = facing.x * x + facing.y * y;
@@ -404,11 +464,15 @@ export function updateMapFogBasedOnObject(
         continue;
       }
 
-      const hasLightOfSight = validateLineOfSight(
+      const hasLightOfSight = getLineOfSightPath(
+        mapData,
+        { x: ox, y: oy },
+        { x: mx, y: my }
+      ).length > 0 && getLineOfSightPath(
         mapData,
         player.position,
         { x: mx, y: my },
-      );
+      ).length > 0;
 
       if (hasLightOfSight) {
         mapTile.visible = true;
@@ -448,52 +512,10 @@ export function updateMapWithoutFog(
   }
 }
 
+
 /**
  * All credit of this function to https://parallelrealities.co.uk/
  */
-export function validateLineOfSight(
-  { map, tilesData }: MapData,
-  p1: Vector2,
-  p2: Vector2
-): boolean {
-  let x = p1.x;
-  let y = p1.y;
-
-  const dx = Math.abs(p2.x - x);
-  const dy = Math.abs(p2.y - y);
-
-  const sx = (x < p2.x) ? 1 : -1;
-  const sy = (y < p2.y) ? 1 : -1;
-
-  let err = dx - dy;
-
-  while (true) {
-    const e2 = 2 * err;
-
-    if (e2 > -dy) {
-      err -= dy;
-      x += sx;
-    }
-
-    if (e2 < dx) {
-      err += dx;
-      y += sy;
-    }
-
-    if (x === p2.x && y === p2.y) {
-      return true;
-    }
-
-    const mapTile = map?.[y]?.[x];
-
-    const tile = tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX];
-
-    if (tile?.type === TileTypeEnum.WALL) {
-      return false;
-    }
-  }
-}
-
 export function getLineOfSightPath(
   { map, tilesData }: MapData,
   p1: Vector2,
@@ -535,7 +557,7 @@ export function getLineOfSightPath(
 
     const tile = tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX];
 
-    if (tile?.type === TileTypeEnum.WALL) {
+    if (tile?.type === TileTypeEnum.WALL || tile?.type === TileTypeEnum.DOOR && !mapTile?.canWalk) {
       return [];
     }
   }
@@ -545,12 +567,8 @@ const wallTileMapData = (
   index: number,
   mapSprite: MapSprite
 ): TileMapData => ({
-  id: index,
   type: TileTypeEnum.WALL,
-  sprite: {
-    spriteSheet: mapSprite.spriteSheet,
-    position: { x: index + mapSprite.startWallPosition.x, y: mapSprite.startWallPosition.y }
-  },
+  position: { x: index + mapSprite.startWallPosition.x, y: mapSprite.startWallPosition.y },
   color: "#202020"
 });
 
@@ -558,20 +576,17 @@ const groundTileMapData = (
   index: number,
   mapSprite: MapSprite
 ): TileMapData => ({
-  id: index,
   type: TileTypeEnum.GROUND,
-  sprite: {
-    spriteSheet: mapSprite.spriteSheet,
-    position: { x: index + mapSprite.startGroundPosition.x, y: mapSprite.startGroundPosition.y }
-  },
+  position: { x: index + mapSprite.startGroundPosition.x, y: mapSprite.startGroundPosition.y },
   color: "GREEN"
 });
 
 
 const wallTileMap = (mapSprite: MapSprite, tileMapDataId?: number): TileMap => ({
-  tileMapDataId: tileMapDataId ?? rand(mapSprite.startWallPosition.x, mapSprite.startWallPosition.x + mapSprite.tileTypeSpriteCount - 2),
+  tileMapDataId: tileMapDataId ?? rand(mapSprite.startWallIndex, mapSprite.startWallIndex + mapSprite.tileTypeSpriteCount - 1),
   revelead: false,
   visible: false,
   visibleBySun: true,
   reveleadTimestamp: null,
+  canWalk: false,
 });

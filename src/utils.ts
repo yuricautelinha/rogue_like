@@ -2,6 +2,8 @@ import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTAN
 import type { Camera, MapData, RGE_Canvas, EntityStorage, Vector2, PlayerEntity, CreatureEntity } from "./models.js";
 import { CompassEnum } from "./models.js";
 
+export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+
 export function loadCanvas(elementId: string): RGE_Canvas {
   const canvas = document.getElementById(elementId);
 
@@ -159,3 +161,15 @@ export const directionToSpritePosition: Record<string, number> = {
   [`1,1`]: 1,
   [`-1,1`]: 3,
 };
+
+export function getOrThrow<T>(arr: T[], index: number): T {
+  const value = arr[index];
+
+  if (!value) {
+    throw new Error("Not able to get");
+  }
+
+  return value;
+}
+
+

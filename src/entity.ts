@@ -199,11 +199,10 @@ export function moveEntity(
   const y = entity.position.y + entity.movment.direction.y;
 
   const mapTile = mapData.map?.[y]?.[x];
-  const tileData = mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX];
 
   let speedModifier = controlInputs.find(control => control.type === KeyboardInputTypeEnum.RUN) ? 1.6 : 1;
 
-  if (tileData?.type === TileTypeEnum.GROUND) {
+  if (mapTile?.canWalk) {
     const normalizedDirection = normalizeVector2(entity.movment.direction);
 
     if (
@@ -234,20 +233,14 @@ export function moveEntity(
   }
 }
 
-export function addEntityBasedOnMousePosition<T extends Entity>(
-  camera: Camera,
+export function addEntityOnPosition<T extends Entity>(
   mapData: MapData,
   entityStorage: EntityStorage<T>,
   entity: T,
-  event: MouseEvent,
+  position: Vector2,
   count: number,
   spriteSheet: SpriteSheet
 ): T[] {
-  const position = {
-    x: Math.floor(event.offsetX / mapData.tileSize + camera.position.x),
-    y: Math.floor(event.offsetY / mapData.tileSize + camera.position.y),
-  };
-
   const storageKey = getEntityStorageKey(position);
 
   if (entityStorage[storageKey] !== undefined && entityStorage[storageKey]?.length > 0) {

@@ -2,9 +2,9 @@ import { moveCamera } from "./camera.js";
 import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, messages, OUTBOUNDED_INDEX, TILE_SIZE } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
 import { applyLight, doMiniMap, drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
-import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, type EntityStorage, EntityEnum, type AmbientLighting, type WorldTime, type CreatureEntity, type FireplaceEntity, type TorchEntity, type PlayerEntity, type MapTimeColorPallete, TileTypeEnum, type House } from "./models.js";
-import { addEntityBasedOnMousePosition, drawEntitiesFromNpcStorage, drawEntitiesFromObjectStorage, drawEntityOnPosition, getEntityStorageKey, moveEntity } from "./entity.js";
-import { clearCanvas, drawGrid, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage } from "./utils.js";
+import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, type EntityStorage, EntityEnum, type AmbientLighting, type WorldTime, type CreatureEntity, type FireplaceEntity, type TorchEntity, type PlayerEntity, type MapTimeColorPallete, TileTypeEnum, type HouseData, type House, type TileMap } from "./models.js";
+import { addEntityOnPosition, drawEntitiesFromNpcStorage, drawEntitiesFromObjectStorage, drawEntityOnPosition, getEntityStorageKey, moveEntity } from "./entity.js";
+import { clearCanvas, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage } from "./utils.js";
 import { initPlayer } from "./player.js";
 
 type GameLoopProps = {
@@ -45,7 +45,7 @@ async function main() {
 
   const worldTime: WorldTime = {
     time: 0,
-    dayLength: 30,
+    dayLength: 60 * 5,
   };
 
   const ambientLighting: AmbientLighting = {
@@ -93,64 +93,59 @@ async function main() {
   };
 
   const house: House = {
-    spriteSheet: gameSprites,
     position: { x: 10, y: 10 },
-    size: { x: 5, y: 5 },
-    doorPosition: { x: 1, y: 4 },
-    bottomSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 2, y: 5 }, { x: 3, y: 5 }, { x: 4, y: 5 }, { x: 5, y: 5 }, { x: 6, y: 5 }],
+    size: { x: 10, y: 10 },
+    doorPosition: { x: 7, y: 9 },
+  };
+
+  const houseData: HouseData = {
+    bottom: {
+      count: 5,
+      startIndex: 14,
     },
-    topSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 6, y: 6 }, { x: 7, y: 6 }],
+    top: {
+      count: 2,
+      startIndex: 27,
     },
-    leftBottomSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 0, y: 5 }],
+    leftBottom: {
+      count: 1,
+      startIndex: 12,
     },
-    rightBottomSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 1, y: 5 }],
+    rightBottom: {
+      count: 1,
+      startIndex: 13,
     },
-    leftSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 2, y: 6 }, { x: 3, y: 6 }],
+    left: {
+      count: 2,
+      startIndex: 23,
     },
-    rightSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 4, y: 6 }, { x: 5, y: 6 }],
+    right: {
+      count: 2,
+      startIndex: 25,
     },
-    leftTopSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 7, y: 5 }],
+    leftTop: {
+      count: 1,
+      startIndex: 19,
     },
-    rightTopSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 8, y: 5 }],
+    rightTop: {
+      count: 1,
+      startIndex: 20,
     },
-    floorSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }, { x: 4, y: 0 }],
+    leftCeil: {
+      count: 4,
+      startIndex: 21,
     },
-    leftCeilSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 0, y: 6 }],
+    rightCeil: {
+      count: 4,
+      startIndex: 22,
     },
-    rightCeilSprites: {
-      spriteSheet: gameSprites,
-      current: 0,
-      positions: [{ x: 1, y: 6 }],
+    floor: {
+      count: 4,
+      startIndex: 4,
+    },
+    door: {
+      count: 1,
+      startIndex: 29,
     },
   };
 
@@ -173,6 +168,7 @@ async function main() {
     tileTypeSpriteCount: 4,
     startGroundPosition: { x: 1, y: 4 },
     startWallPosition: { x: 5, y: 4 },
+    startWallIndex: 8,
   };
 
   const dayTimeColorPallette: MapTimeColorPallete[] = [
@@ -275,6 +271,7 @@ async function main() {
         tileTypeSpriteCount: 4,
         startGroundPosition: { x: 1, y: 0 },
         startWallPosition: { x: 5, y: 0 },
+        startWallIndex: 8,
       };
       const m = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite, ambientLighting, caveColorPallette);
       mapData.tilesData = m.tilesData;
@@ -288,6 +285,7 @@ async function main() {
         tileTypeSpriteCount: 4,
         startGroundPosition: { x: 1, y: 4 },
         startWallPosition: { x: 5, y: 4 },
+        startWallIndex: 8,
       };
       const m = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite, ambientLighting, dayTimeColorPallette);
       mapData.tilesData = m.tilesData;
@@ -306,6 +304,27 @@ async function main() {
 
   canvas.addEventListener("click", (event) => {
     event.preventDefault();
+
+    const position = {
+      x: Math.floor(event.offsetX / mapData.tileSize + camera.position.x),
+      y: Math.floor(event.offsetY / mapData.tileSize + camera.position.y),
+    };
+
+    const mapTile = mapData.map[position.y]?.[position.x];
+    const tileData = mapData.tilesData[mapTile?.tileMapDataId ?? OUTBOUNDED_INDEX];
+
+    if (!mapTile || !tileData) {
+      return;
+    }
+    else if (tileData.type === TileTypeEnum.WALL) {
+      return;
+    }
+    else if (tileData.type === TileTypeEnum.DOOR) {
+      mapTile.canWalk = !mapTile.canWalk;
+      mapTile.tileMapDataId = mapTile.canWalk ? houseData.door.startIndex + 1 : houseData.door.startIndex;
+      return;
+    }
+
     if (loadInput("enemy").checked) {
       const enemy: CreatureEntity = {
         id: 1,
@@ -347,7 +366,7 @@ async function main() {
         message: null,
       };
 
-      const newEntities = addEntityBasedOnMousePosition(camera, mapData, enemies, enemy, event, 1, gameSprites);
+      const newEntities = addEntityOnPosition(mapData, enemies, enemy, position, 1, gameSprites);
 
       newEntities.forEach(entity => {
         entity.movment.body.x = entity.position.x;
@@ -375,7 +394,7 @@ async function main() {
         }
       };
 
-      addEntityBasedOnMousePosition(camera, mapData, objects, fireplace, event, 1, gameSprites);
+      addEntityOnPosition(mapData, objects, fireplace, position, 1, gameSprites);
     }
   });
 
@@ -401,8 +420,8 @@ async function main() {
             distance: 3,
             memory: {
               canRemember: true,
-              duration: 5000,
-              endTimestamp: Date.now() + 5000,
+              duration: 1000 * 60,
+              endTimestamp: Date.now() + 1000 * 60,
             }
           }
         }];
@@ -431,17 +450,22 @@ async function main() {
   };
 
   initPlayer(player, mapData);
-  house.position.x = player.position.x + 3;
-  house.position.y = player.position.y + 3;
-  house.doorPosition.x = house.doorPosition.x + house.position.x;
-  house.doorPosition.y = house.position.y + house.doorPosition.y;
-  console.log(house);
+
+  {
+    house.position.x = player.position.x - 3;
+    house.position.y = player.position.y + 3;
+    house.doorPosition.x = house.doorPosition.x + house.position.x;
+    house.doorPosition.y = house.position.y + house.doorPosition.y;
+
+    placeHouseOnMap(mapData, houseData, house);
+  }
+
   setupKeyEvents(directionalInputs, controlInputs);
-  requestAnimationFrame(gameLoop(gameLoopProps, house));
+  requestAnimationFrame(gameLoop(gameLoopProps, houseData));
 };
 
 let lastTime = 0;
-function gameLoop(props: GameLoopProps, house: House) {
+function gameLoop(props: GameLoopProps, house: HouseData) {
   const { canvas, context } = props.rgeCanvas;
 
   return function(time: number) {
@@ -514,10 +538,8 @@ function gameLoop(props: GameLoopProps, house: House) {
     drawEntitiesFromNpcStorage(camera, mapData, player, enemies, context, DEBUG);
     drawEntityOnPosition(camera, player.movment.body, player, mapData.tileSize, context, DEBUG);
     drawEntitiesFromObjectStorage(camera, mapData, player, playerObjectsStorage, context, DEBUG);
-    drawHouse(camera, house, mapData.tileSize, context);
     applyLight(camera, mapData, ambientLighting, worldTime, rgeCanvas);
     doMiniMap(player, miniMapData, miniMap);
-
 
     if (!player.health.isAlive) {
       const message = "You are dead";
@@ -551,199 +573,123 @@ function gameLoop(props: GameLoopProps, house: House) {
     );
 
     if (DEBUG) {
-      drawGrid(mapData.tileSize, camera, rgeCanvas, "#FFFFFF18");
+      //drawGrid(mapData.tileSize, camera, rgeCanvas, "#FFFFFF18");
     }
 
     context.closePath();
   }
 }
 
-function drawHouse(camera: Camera, house: House, tileSize: number, context: CanvasRenderingContext2D) {
-  const hx = (house.position.x - camera.position.x) * tileSize;
-  const hy = (house.position.y - camera.position.y) * tileSize;
+function placeHouseOnMap(mapData: MapData, houseData: HouseData, house: House) {
+  const hx = house.position.x;
+  const hy = house.position.y;
 
   const hw = house.size.x - 1;
   const hh = house.size.y - 1;
 
-  const topSpritePosition = getOrThrow(house.topSprites.positions, house.topSprites.current);
-  const leftTopSpritePosition = getOrThrow(house.leftTopSprites.positions, house.leftTopSprites.current);
-  const rightTopSpritePosition = getOrThrow(house.rightTopSprites.positions, house.rightTopSprites.current);
+  const makeTileMap = (tileMapDataId: number): TileMap => ({
+    canWalk: false,
+    tileMapDataId,
+    revelead: false,
+    visible: false,
+    visibleBySun: false,
+    reveleadTimestamp: null,
+  });
 
-  const bottomSpritePosition = getOrThrow(house.bottomSprites.positions, house.bottomSprites.current);
-  const leftBottomSpritePosition = getOrThrow(house.leftBottomSprites.positions, house.leftBottomSprites.current);
-  const rightBottomSpritePosition = getOrThrow(house.rightBottomSprites.positions, house.rightBottomSprites.current);
+  if (mapData.map[hy]?.[hx]) {
+    mapData.map[hy][hx] = makeTileMap(rand(houseData.leftTop.startIndex, houseData.leftTop.startIndex + houseData.leftTop.count - 1));
+  }
 
-  const leftCeilSpritePosition = getOrThrow(house.leftCeilSprites.positions, house.leftCeilSprites.current);
-  const rightCeilSpritePosition = getOrThrow(house.rightCeilSprites.positions, house.rightCeilSprites.current);
+  {
+    const my = hy + hh;
+    if (mapData.map[my]?.[hx]) {
+      mapData.map[my][hx] = makeTileMap(rand(houseData.leftBottom.startIndex, houseData.leftBottom.startIndex + houseData.leftBottom.count - 1));
+    }
+  }
 
-  const floorSpritePosition = getOrThrow(house.floorSprites.positions, house.floorSprites.current);
-  const leftSpritePosition = getOrThrow(house.leftSprites.positions, house.leftSprites.current);
-  const rightSpritePosition = getOrThrow(house.rightSprites.positions, house.rightSprites.current);
+  {
+    const mx = hx + hw;
+    if (mapData.map[hy]?.[mx]) {
+      mapData.map[hy][mx] = makeTileMap(rand(houseData.rightTop.startIndex, houseData.rightTop.startIndex + houseData.rightTop.count - 1));
+    }
+  }
 
-  context.drawImage(
-    house.spriteSheet.asset,
-    leftTopSpritePosition.x * house.spriteSheet.tileSize,
-    leftTopSpritePosition.y * house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    hx,
-    hy,
-    tileSize,
-    tileSize
-  );
-
-  context.drawImage(
-    house.spriteSheet.asset,
-    leftBottomSpritePosition.x * house.spriteSheet.tileSize,
-    leftBottomSpritePosition.y * house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    hx,
-    hy + hh * tileSize,
-    tileSize,
-    tileSize
-  );
-
-  context.drawImage(
-    house.spriteSheet.asset,
-    rightTopSpritePosition.x * house.spriteSheet.tileSize,
-    rightTopSpritePosition.y * house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    hx + hw * tileSize,
-    hy,
-    tileSize,
-    tileSize
-  );
-
-  context.drawImage(
-    house.spriteSheet.asset,
-    rightBottomSpritePosition.x * house.spriteSheet.tileSize,
-    rightBottomSpritePosition.y * house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    hx + hw * tileSize,
-    hy + hh * tileSize,
-    tileSize,
-    tileSize
-  );
-
-  context.drawImage(
-    house.spriteSheet.asset,
-    leftCeilSpritePosition.x * house.spriteSheet.tileSize,
-    leftCeilSpritePosition.y * house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    hx,
-    hy + (hh - 1) * tileSize,
-    tileSize,
-    tileSize
-  );
-
-  context.drawImage(
-    house.spriteSheet.asset,
-    rightCeilSpritePosition.x * house.spriteSheet.tileSize,
-    rightCeilSpritePosition.y * house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    house.spriteSheet.tileSize,
-    hx + hw * tileSize,
-    hy + (hh - 1) * tileSize,
-    tileSize,
-    tileSize
-  );
+  {
+    const mx = hx + hw;
+    const my = hy + hh;
+    if (mapData.map[my]?.[mx]) {
+      mapData.map[my][mx] = makeTileMap(rand(houseData.rightBottom.startIndex, houseData.rightBottom.startIndex + houseData.rightBottom.count - 1));
+    }
+  }
 
   for (let y = 1; y < hh + 1; ++y) {
     if (y < hh) {
-      context.drawImage(
-        house.spriteSheet.asset,
-        leftSpritePosition.x * house.spriteSheet.tileSize,
-        leftSpritePosition.y * house.spriteSheet.tileSize,
-        house.spriteSheet.tileSize,
-        house.spriteSheet.tileSize,
-        hx,
-        hy + y * tileSize,
-        tileSize,
-        tileSize
-      );
+      {
+        const my = hy + y;
+        if (mapData.map[my]?.[hx]) {
+          mapData.map[my][hx] = makeTileMap(rand(houseData.left.startIndex, houseData.left.startIndex + houseData.left.count - 1));
+        }
+      }
 
-      context.drawImage(
-        house.spriteSheet.asset,
-        rightSpritePosition.x * house.spriteSheet.tileSize,
-        rightSpritePosition.y * house.spriteSheet.tileSize,
-        house.spriteSheet.tileSize,
-        house.spriteSheet.tileSize,
-        hx + hw * tileSize,
-        hy + y * tileSize,
-        tileSize,
-        tileSize
-      );
+      {
+        const mx = hx + hw;
+        const my = hy + y;
+        if (mapData.map[my]?.[mx]) {
+          mapData.map[my][mx] = makeTileMap(rand(houseData.right.startIndex, houseData.right.startIndex + houseData.right.count - 1));
+        }
+      }
     }
 
     for (let x = 1; x < hw; ++x) {
       if (y === hh) {
-        context.drawImage(
-          house.spriteSheet.asset,
-          topSpritePosition.x * house.spriteSheet.tileSize,
-          topSpritePosition.y * house.spriteSheet.tileSize,
-          house.spriteSheet.tileSize,
-          house.spriteSheet.tileSize,
-          hx + x * tileSize,
-          hy,
-          tileSize,
-          tileSize
-        );
+        {
+          const mx = hx + x;
+          if (mapData.map[hy]?.[mx]) {
+            mapData.map[hy][mx] = makeTileMap(rand(houseData.top.startIndex, houseData.top.startIndex + houseData.top.count - 1));
+          }
+        }
 
-        context.drawImage(
-          house.spriteSheet.asset,
-          bottomSpritePosition.x * house.spriteSheet.tileSize,
-          bottomSpritePosition.y * house.spriteSheet.tileSize,
-          house.spriteSheet.tileSize,
-          house.spriteSheet.tileSize,
-          hx + x * tileSize,
-          hy + hh * tileSize,
-          tileSize,
-          tileSize
-        );
+        {
+          const mx = hx + x;
+          const my = hy + hh;
+          if (mapData.map[my]?.[mx]) {
+            mapData.map[my][mx] = makeTileMap(rand(houseData.bottom.startIndex, houseData.bottom.startIndex + houseData.bottom.count - 1));
+          }
+        }
       }
       else {
-        context.drawImage(
-          house.spriteSheet.asset,
-          floorSpritePosition.x * house.spriteSheet.tileSize,
-          floorSpritePosition.y * house.spriteSheet.tileSize,
-          house.spriteSheet.tileSize,
-          house.spriteSheet.tileSize,
-          hx + x * tileSize,
-          hy + y * tileSize,
-          tileSize,
-          tileSize
-        );
-      }
-
-      if ((house.position.x + x) === house.doorPosition.x && (house.position.y + y) === house.doorPosition.y) {
-        context.drawImage(
-          house.spriteSheet.asset,
-          floorSpritePosition.x * house.spriteSheet.tileSize,
-          floorSpritePosition.y * house.spriteSheet.tileSize,
-          house.spriteSheet.tileSize,
-          house.spriteSheet.tileSize,
-          hx + x * tileSize,
-          hy + y * tileSize,
-          tileSize,
-          tileSize
-        );
+        const mx = hx + x;
+        const my = hy + y;
+        if (mapData.map[my]?.[mx]) {
+          mapData.map[my][mx] = makeTileMap(rand(houseData.floor.startIndex, houseData.floor.startIndex + houseData.floor.count - 1));
+          mapData.map[my][mx].canWalk = true;
+        }
       }
     }
   }
-}
 
-function getOrThrow<T>(arr: T[], index: number): T {
-  const value = arr[index];
-
-  if (!value) {
-    throw new Error("FUUUCK");
+  {
+    const my = hy + hh - 1;
+    if (mapData.map[my]?.[hx]) {
+      mapData.map[my][hx] = makeTileMap(houseData.leftCeil.startIndex);
+    }
   }
 
-  return value;
+  {
+    const mx = hx + hw;
+    const my = hy + hh - 1;
+    if (mapData.map[my]?.[mx]) {
+      mapData.map[my][mx] = makeTileMap(houseData.rightCeil.startIndex);
+    }
+  }
+
+  {
+    const mx = house.doorPosition.x;
+    const my = house.doorPosition.y;
+    if (mapData.map[my]?.[mx]) {
+      mapData.map[my][mx] = makeTileMap(houseData.door.startIndex);
+    }
+  }
 }
 
 function doObjects(player: PlayerEntity, objectsStorage: EntityStorage<FireplaceEntity | TorchEntity>, mapData: MapData) {
