@@ -94,8 +94,8 @@ async function main() {
 
   const house: House = {
     position: { x: 10, y: 10 },
-    size: { x: 10, y: 10 },
-    doorPosition: { x: 7, y: 9 },
+    size: { x: 10, y: 4 },
+    doorPosition: { x: 1, y: 3 },
   };
 
   const houseData: HouseData = {
@@ -366,7 +366,7 @@ async function main() {
         message: null,
       };
 
-      const newEntities = addEntityOnPosition(mapData, enemies, enemy, position, 1, gameSprites);
+      const newEntities = addEntityOnPosition(mapData, enemies, enemy, position, 10000, gameSprites);
 
       newEntities.forEach(entity => {
         entity.movment.body.x = entity.position.x;
@@ -539,7 +539,7 @@ function gameLoop(props: GameLoopProps, house: HouseData) {
     drawEntityOnPosition(camera, player.movment.body, player, mapData.tileSize, context, DEBUG);
     drawEntitiesFromObjectStorage(camera, mapData, player, playerObjectsStorage, context, DEBUG);
     applyLight(camera, mapData, ambientLighting, worldTime, rgeCanvas);
-    doMiniMap(player, miniMapData, miniMap);
+    //doMiniMap(player, miniMapData, miniMap);
 
     if (!player.health.isAlive) {
       const message = "You are dead";
@@ -555,6 +555,7 @@ function gameLoop(props: GameLoopProps, house: HouseData) {
       player.eyes.memory.duration = 0;
     }
 
+    const fps = Math.round(1 / dt);
     const totalMinutes = normalizedTimestamp * 60 * 24;
     const hours = Math.floor(totalMinutes / 60).toFixed(0).padStart(2, '0');
     const minutes = Math.floor(totalMinutes % 60).toFixed(0).padStart(2, '0');
@@ -562,7 +563,7 @@ function gameLoop(props: GameLoopProps, house: HouseData) {
     const day = ((totalDays % 30) + 1).toFixed(0).padStart(2, '0');
     const month = Math.floor(((totalDays / 30) % 12) + 1).toFixed(0).padStart(2, '0');
     const year = Math.floor(totalDays / (30 * 12)).toFixed(0).padStart(2, '0');;
-    const dateTime = `${day}/${month}/${year} ${hours}:${minutes}h`;
+    const dateTime = `${day}/${month}/${year} ${hours}:${minutes}h - FPS ${fps}`;
 
     context.font = "30px bold sans-serif";
     context.fillStyle = "WHITE";
@@ -798,12 +799,9 @@ function moveEnemiesUsingManhattanAlgo(
           enemy.color = "PURPLE";
         }
 
-        const newKey = getEntityStorageKey({
-          x: enemy.position.x + direction.x,
-          y: enemy.position.y + direction.y
-        });
+        const newKey = getEntityStorageKey(nextPosition);
 
-        if (enemiesStorage[newKey] === undefined || enemiesStorage[newKey].length === 0) {
+        if (mapData.map[nextPosition.y]?.[nextPosition.x]?.canWalk && enemiesStorage[newKey] === undefined || enemiesStorage[newKey]?.length === 0) {
           control.push({
             id: 'rand',
             direction,
@@ -828,7 +826,7 @@ function moveEnemiesUsingManhattanAlgo(
             const mx = currentPosition.x + direction.x;
             const my = currentPosition.y + direction.y;
 
-            if (mapData.tilesData[mapData.map[my]?.[mx]?.tileMapDataId ?? OUTBOUNDED_INDEX]?.type === TileTypeEnum.WALL) {
+            if (!mapData.map[my]?.[mx]?.canWalk) {
               continue;
             }
 

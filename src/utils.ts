@@ -1,8 +1,10 @@
-import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE } from "./constants.js";
+import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, SEED } from "./constants.js";
 import type { Camera, MapData, RGE_Canvas, EntityStorage, Vector2, PlayerEntity, CreatureEntity } from "./models.js";
 import { CompassEnum } from "./models.js";
 
 export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+
+const myRandom = mulberry32(SEED);
 
 export function loadCanvas(elementId: string): RGE_Canvas {
   const canvas = document.getElementById(elementId);
@@ -94,8 +96,19 @@ export const normalizeVector2 = (vector2: Vector2): Vector2 => {
   return { x: vector2.x / magnitude, y: vector2.y / magnitude };
 };
 
+export function mulberry32(seed: number): () => number {
+  return function(): number {
+    let t = seed += 0x6D2B79F5;
+
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export const rand = (min: number = 0, max: number = 10): number =>
-  Math.floor(Math.random() * (max - min + 1) + min);
+  Math.floor(myRandom() * (max - min + 1) + min);
 
 export const sleep = (sleepTime: number) =>
   new Promise(resolve => setTimeout(resolve, sleepTime))
