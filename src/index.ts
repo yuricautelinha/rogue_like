@@ -1,8 +1,8 @@
 import { moveCamera } from "./camera.js";
 import { DEFAULT_PLAYER_MEMORY, DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, messages, OUTBOUNDED_INDEX, TILE_SIZE } from "./constants.js";
 import { setupKeyEvents } from "./controls.js";
-import { applyLight, doMiniMap, drawMap, generateMap, generateMapData, getLineOfSightPath, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
-import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, type EntityStorage, EntityEnum, type AmbientLighting, type WorldTime, type CreatureEntity, type FireplaceEntity, type TorchEntity, type PlayerEntity, type MapTimeColorPallete, TileTypeEnum, type HouseData, type House, type TileMap } from "./models.js";
+import { applyLight, drawMap, generateMap, generateMapData, getLineOfSightPath, placeHouseOnMap, updateMapFog, updateMapFogBasedOnObject, updateMapWithoutFog } from "./map.js";
+import { type MapData, type Camera, type DirectionKeyboardInput, type SpriteSheet, type MapSprite, CompassEnum, type KeyboardInput, KeyboardInputTypeEnum, type Vector2, type RGE_Canvas, type EntityStorage, EntityEnum, type AmbientLighting, type WorldTime, type CreatureEntity, type FireplaceEntity, type TorchEntity, type PlayerEntity, type MapTimeColorPallete, TileTypeEnum, type HouseData, type House } from "./models.js";
 import { addEntityOnPosition, drawEntitiesFromNpcStorage, drawEntitiesFromObjectStorage, drawEntityOnPosition, getEntityStorageKey, moveEntity } from "./entity.js";
 import { clearCanvas, loadButton, loadCanvas, loadImage, loadInput, loadMapFromLocalStorage, rand, saveMapToLocalStorage } from "./utils.js";
 import { initPlayer } from "./player.js";
@@ -487,8 +487,8 @@ function gameLoop(props: GameLoopProps, house: HouseData) {
       worldTime,
       ambientLighting,
       rgeCanvas,
-      miniMap,
-      miniMapData
+      // miniMap,
+      // miniMapData
     } = props;
 
     const dt = (time - lastTime) / 1000;
@@ -578,118 +578,6 @@ function gameLoop(props: GameLoopProps, house: HouseData) {
     }
 
     context.closePath();
-  }
-}
-
-function placeHouseOnMap(mapData: MapData, houseData: HouseData, house: House) {
-  const hx = house.position.x;
-  const hy = house.position.y;
-
-  const hw = house.size.x - 1;
-  const hh = house.size.y - 1;
-
-  const makeTileMap = (tileMapDataId: number): TileMap => ({
-    canWalk: false,
-    tileMapDataId,
-    revelead: false,
-    visible: false,
-    visibleBySun: false,
-    reveleadTimestamp: null,
-  });
-
-  if (mapData.map[hy]?.[hx]) {
-    mapData.map[hy][hx] = makeTileMap(rand(houseData.leftTop.startIndex, houseData.leftTop.startIndex + houseData.leftTop.count - 1));
-  }
-
-  {
-    const my = hy + hh;
-    if (mapData.map[my]?.[hx]) {
-      mapData.map[my][hx] = makeTileMap(rand(houseData.leftBottom.startIndex, houseData.leftBottom.startIndex + houseData.leftBottom.count - 1));
-    }
-  }
-
-  {
-    const mx = hx + hw;
-    if (mapData.map[hy]?.[mx]) {
-      mapData.map[hy][mx] = makeTileMap(rand(houseData.rightTop.startIndex, houseData.rightTop.startIndex + houseData.rightTop.count - 1));
-    }
-  }
-
-  {
-    const mx = hx + hw;
-    const my = hy + hh;
-    if (mapData.map[my]?.[mx]) {
-      mapData.map[my][mx] = makeTileMap(rand(houseData.rightBottom.startIndex, houseData.rightBottom.startIndex + houseData.rightBottom.count - 1));
-    }
-  }
-
-  for (let y = 1; y < hh + 1; ++y) {
-    if (y < hh) {
-      {
-        const my = hy + y;
-        if (mapData.map[my]?.[hx]) {
-          mapData.map[my][hx] = makeTileMap(rand(houseData.left.startIndex, houseData.left.startIndex + houseData.left.count - 1));
-        }
-      }
-
-      {
-        const mx = hx + hw;
-        const my = hy + y;
-        if (mapData.map[my]?.[mx]) {
-          mapData.map[my][mx] = makeTileMap(rand(houseData.right.startIndex, houseData.right.startIndex + houseData.right.count - 1));
-        }
-      }
-    }
-
-    for (let x = 1; x < hw; ++x) {
-      if (y === hh) {
-        {
-          const mx = hx + x;
-          if (mapData.map[hy]?.[mx]) {
-            mapData.map[hy][mx] = makeTileMap(rand(houseData.top.startIndex, houseData.top.startIndex + houseData.top.count - 1));
-          }
-        }
-
-        {
-          const mx = hx + x;
-          const my = hy + hh;
-          if (mapData.map[my]?.[mx]) {
-            mapData.map[my][mx] = makeTileMap(rand(houseData.bottom.startIndex, houseData.bottom.startIndex + houseData.bottom.count - 1));
-          }
-        }
-      }
-      else {
-        const mx = hx + x;
-        const my = hy + y;
-        if (mapData.map[my]?.[mx]) {
-          mapData.map[my][mx] = makeTileMap(rand(houseData.floor.startIndex, houseData.floor.startIndex + houseData.floor.count - 1));
-          mapData.map[my][mx].canWalk = true;
-        }
-      }
-    }
-  }
-
-  {
-    const my = hy + hh - 1;
-    if (mapData.map[my]?.[hx]) {
-      mapData.map[my][hx] = makeTileMap(houseData.leftCeil.startIndex);
-    }
-  }
-
-  {
-    const mx = hx + hw;
-    const my = hy + hh - 1;
-    if (mapData.map[my]?.[mx]) {
-      mapData.map[my][mx] = makeTileMap(houseData.rightCeil.startIndex);
-    }
-  }
-
-  {
-    const mx = house.doorPosition.x;
-    const my = house.doorPosition.y;
-    if (mapData.map[my]?.[mx]) {
-      mapData.map[my][mx] = makeTileMap(houseData.door.startIndex);
-    }
   }
 }
 
@@ -881,6 +769,7 @@ const compass: CompassEnum[] = [CompassEnum.EAST, CompassEnum.SOUTH, CompassEnum
 function computeRandomDirection(): Vector2 {
   const compassDirection = compass[rand(0, 1000) % compass.length] ?? CompassEnum.NORTH;
 
+  // TODO: include other positions so WEST is not the most picked one
   switch (compassDirection) {
     case (CompassEnum.NORTH):
       return { x: 0, y: -1 };

@@ -1,340 +1,326 @@
-// import { moveCamera } from "./camera.js";
-// import { DEFAULT_PLAYER_MEMORY, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, TILE_SIZE } from "./constants.js";
-// import { setupKeyEvents } from "./controls.js";
-// import { drawEntity } from "./entity.js";
-// import { doMiniMap } from "./map.js";
-// import { type MapData, type Camera, type SpriteSheet, type MapSprite, type RGE_Canvas, TileTypeEnum, type TileMap, type Entity, CompassEnum, EntityEnum, type DirectionKeyboardInput, directionToCompassMap, type TileMapData } from "./models.js";
-// import { clearCanvas, loadCanvas, loadImage, rand, sleep } from "./utils.js";
-//
-// let PAUSED = false;
-// let FINISHED = false;
-//
-// window.addEventListener("load", main);
-//
-// async function main() {
-//   const rgeCanvas = loadCanvas("game");
-//   const miniMap = loadCanvas("mini-map");
-//   const { canvas, context } = rgeCanvas;
-//
-//   canvas.width = window.innerWidth;
-//   canvas.height = window.innerHeight;
-//
-//   window.addEventListener("resize", () => {
-//     canvas.width = window.innerWidth;
-//     canvas.height = window.innerHeight;
-//   });
-//
-//   context.imageSmoothingEnabled = false;
-//
-//   const gameSprites: SpriteSheet = {
-//     asset: loadImage("game-sprites"),
-//     tileSize: 32,
-//   };
-//   const camera: Camera = {
-//     position: { x: 0, y: 0 },
-//     direction: { x: 0, y: 0 },
-//     speed: 100,
-//     freelook: false,
-//   };
-//
-//   const mapSprite: MapSprite = {
-//     spriteSheet: gameSprites,
-//     tileTypeSpriteCount: 4,
-//     startGroundPosition: {x: 1, y: 4},
-//     startWallPosition: {x: 5, y: 4}
-//   };
-//
-//   const player: Entity = {
-//     type: EntityEnum.PLAYER,
-//     isAlive: true,
-//     viewDistance: 0,
-//     color: "WHITE",
-//     position: { x: 0, y: 0, },
-//     body: { x: 0, y: 0, },
-//     direction: { x: 0, y: 0, },
-//     speed: 100,
-//     facing: CompassEnum.NORTH,
-//     memory: DEFAULT_PLAYER_MEMORY,
-//     spawnTimestamp: Date.now()
-//   };
-//
-//   player.sprite = {
-//     position: { x: 4, y: 1 },
-//     spriteSheet: gameSprites
-//   };
-//
-//   miniMap.canvas.width = 200;
-//
-//   const mapData = generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite);
-//   const miniMapData: MapData = { ...mapData, tileSize: miniMap.canvas.width / MAP_TILES_WIDTH };
-//   const directionalInputs: DirectionKeyboardInput[] = [];
-//
-//   miniMap.canvas.height = miniMapData.tileSize * MAP_TILES_HEIGHT;
-//
-//   generateMap(mapData, player);
-//   setupKeyEvents(player, directionalInputs, []);
-//
-//   window.addEventListener("keydown", (event) => {
-//     if (event.key === ' ') {
-//       PAUSED = !PAUSED;
-//     } else if (event.key === 'f') {
-//       camera.freelook = !camera.freelook;
-//     }
-//   });
-//
-//   requestAnimationFrame(
-//     gameLoop(
-//       camera,
-//       mapData,
-//       miniMapData,
-//       player,
-//       directionalInputs,
-//       rgeCanvas,
-//       miniMap,
-//       0
-//     )
-//   );
-// };
-//
-// function gameLoop(
-//   camera: Camera,
-//   mapData: MapData,
-//   miniMapData: MapData,
-//   player: Entity,
-//   directionalInputs: DirectionKeyboardInput[],
-//   gameRgeCanvas: RGE_Canvas,
-//   miniMapRgeCanvas: RGE_Canvas,
-//   lastTime: number
-// ) {
-//   const { canvas, context } = gameRgeCanvas;
-//
-//   return function(time: number) {
-//     requestAnimationFrame(
-//       gameLoop(
-//         camera,
-//         mapData,
-//         miniMapData,
-//         player,
-//         directionalInputs,
-//         gameRgeCanvas,
-//         miniMapRgeCanvas,
-//         time
-//       )
-//     );
-//
-//     const dt = (time - lastTime) / 1000;
-//
-//     moveCamera(player, camera, mapData, directionalInputs, canvas, dt);
-//
-//     context.beginPath();
-//
-//     clearCanvas("#000", gameRgeCanvas);
-//     drawMap(camera, mapData, gameRgeCanvas);
-//     drawEntity(player, camera, mapData, context);
-//
-//     doMiniMap(player, miniMapData, miniMapRgeCanvas);
-//
-//     if (FINISHED) {
-//       const message = "Finalizado";
-//       const measureMessage = context.measureText(message);
-//       context.font = "60px bold sans-serif";
-//       context.fillStyle = "WHITE";
-//       context.fillText(
-//         message,
-//         canvas.width / 2 - measureMessage.width / 2,
-//         canvas.height / 2,
-//       );
-//     }
-//
-//     context.closePath();
-//   }
-// }
-//
-// async function generateMap(
-//   mapData: MapData,
-//   player: Entity,
-// ): Promise<MapData> {
-//   const { tilesData: tiles, map, width, height, mapSprite, spawnPosition } = mapData;
-//   const coverage = 20 + rand(0, 15);
-//
-//   let n = (width * height) * (coverage * 0.03);
-//   let x = 1 + rand(0, width - 2);
-//   let y = 1 + rand(0, height - 2);
-//
-//   let dx = 0;
-//   let dy = 0;
-//   let straight = 0;
-//
-//   const tile = map[y]?.[x];
-//
-//   if (tile) {
-//     tile.tileMapDataId = rand(0, mapSprite.tileTypeSpriteCount - 1);
-//   }
-//
-//   while (n > 0) {
-//     if (PAUSED) {
-//       await sleep(1);
-//       continue;
-//     }
-//
-//     straight = Math.max(straight - 1, 0);
-//
-//     if (straight === 0) {
-//       switch (rand(0, 4)) {
-//         case (0):
-//           dx = 0;
-//           dy = -1;
-//           break;
-//         case (1):
-//           dx = 0;
-//           dy = 1;
-//           break;
-//         case (2):
-//           dx = -1;
-//           dy = 0;
-//           break;
-//         case (3):
-//           dx = 1;
-//           dy = 0;
-//           break;
-//         default:
-//           straight = 4 + rand(0, 7);
-//           break;
-//       }
-//     }
-//
-//     x = Math.min(Math.max(x + dx, 1), width - 2);
-//     y = Math.min(Math.max(y + dy, 1), height - 2);
-//
-//     const tile = map[y]?.[x];
-//
-//     if (tile && tiles[tile.tileMapDataId]?.type === TileTypeEnum.WALL) {
-//       tile.tileMapDataId = rand(0, mapSprite.tileTypeSpriteCount - 1);
-//       n--;
-//     }
-//
-//     player.position.x = x;
-//     player.position.y = y;
-//
-//     player.body.x = x;
-//     player.body.y = y;
-//
-//
-//     player.facing = directionToCompassMap[`(${dx},${dy})`] ?? player.facing;
-//
-//     await sleep(10);
-//   }
-//
-//   spawnPosition.x = x;
-//   spawnPosition.y = y;
-//
-//   FINISHED = true;
-//
-//   return mapData;
-// }
-//
-// function drawMap(
-//   camera: Camera,
-//   { map, mapSprite, tileSize, tilesData: tiles }: MapData,
-//   { canvas, context }: RGE_Canvas,
-// ): void {
-//   const tilesX = Math.ceil(canvas.width / tileSize) + 1;
-//   const tilesY = Math.ceil(canvas.height / tileSize) + 1;
-//
-//   const offsetX = camera.position.x % 1;
-//   const offsetY = camera.position.y % 1;
-//
-//   const cx = Math.floor(camera.position.x);
-//   const cy = Math.floor(camera.position.y);
-//
-//   for (let y = 0; y < tilesY; ++y) {
-//     for (let x = 0; x < tilesX; ++x) {
-//       const mapTile = map?.[y + cy]?.[x + cx] ?? wallTileMap(mapSprite);
-//       const tileData = tiles[mapTile.tileMapDataId];
-//
-//       if (!tileData) {
-//         continue;
-//       }
-//
-//       context.drawImage(
-//         mapSprite.spriteSheet.asset,
-//         tileData.sprite.position.x * tileData.sprite.spriteSheet.tileSize,
-//         tileData.sprite.position.y * tileData.sprite.spriteSheet.tileSize,
-//         tileData.sprite.spriteSheet.tileSize,
-//         tileData.sprite.spriteSheet.tileSize,
-//         (x - offsetX) * tileSize,
-//         (y - offsetY) * tileSize,
-//         tileSize,
-//         tileSize
-//       );
-//     }
-//   }
-// }
-//
-// export function generateMapData(
-//   tileSize: number,
-//   width: number,
-//   height: number,
-//   mapSprite: MapSprite,
-// ): MapData {
-//   const map: TileMap[][] =
-//     new Array(height).fill(0).map(() =>
-//       new Array(width)
-//         .fill(mapSprite.startWallPosition)
-//         .map(() => wallTileMap(mapSprite))
-//     );
-//
-//   const tiles: TileMapData[] = new Array(mapSprite.tileTypeSpriteCount)
-//     .fill(null)
-//     .map((_, index: number): TileMapData => groundTileMapData(index, mapSprite))
-//     .concat(
-//       new Array(mapSprite.tileTypeSpriteCount)
-//         .fill(null)
-//         .map((_, index: number): TileMapData => wallTileMapData(index, mapSprite))
-//     );
-//
-//   return {
-//     width,
-//     height,
-//     map,
-//     tilesData: tiles,
-//     tileSize,
-//     mapSprite,
-//     spawnPosition: { x: 0, y: 0 }
-//   };
-// }
-//
-// const wallTileMapData = (
-//   index: number,
-//   mapSprite: MapSprite
-// ): TileMapData => ({
-//   id: index,
-//   type: TileTypeEnum.WALL,
-//   sprite: {
-//     spriteSheet: mapSprite.spriteSheet,
-//     position: { x: index + mapSprite.startWallPosition.x, y: mapSprite.startWallPosition.y }
-//   },
-//   color: "#202020"
-// });
-//
-// const groundTileMapData = (
-//   index: number,
-//   mapSprite: MapSprite
-// ): TileMapData => ({
-//   id: index,
-//   type: TileTypeEnum.GROUND,
-//   sprite: {
-//     spriteSheet: mapSprite.spriteSheet,
-//     position: { x: index + mapSprite.startGroundPosition.x, y: mapSprite.startGroundPosition.y }
-//   },
-//   color: "GREEN"
-// });
-//
-//
-// const wallTileMap = (mapSprite: MapSprite): TileMap => ({
-//   tileMapDataId: rand(mapSprite.startWallPosition.x, mapSprite.startWallPosition.x + mapSprite.tileTypeSpriteCount - 2),
-//   revelead: false,
-//   visible: false,
-//   visibleBySun: false,
-//   reveleadTimestamp: null,
-// });
+import { moveCamera } from "./camera.js";
+import { DEFAULT_PLAYER_SPEED, DEFAULT_PLAYER_VIEW_DISTANCE, MAP_TILES_HEIGHT, MAP_TILES_WIDTH, TILE_SIZE } from "./constants.js";
+import { setupKeyEvents } from "./controls.js";
+import { drawMap, generateMap, generateMapData, placeHouseOnMap, updateMapWithoutFog } from "./map.js";
+import { EntityEnum, type AmbientLighting, type Camera, type DirectionKeyboardInput, type House, type HouseData, type MapSprite, type MapTimeColorPallete, type PlayerEntity, type RGE_Canvas, type SpriteSheet, type Vector2 } from "./models.js";
+import { clearCanvas, loadCanvas, loadImage, rand, randF } from "./utils.js";
+
+window.addEventListener("load", main);
+
+let index = 0;
+const DEBUG = false;
+async function main() {
+  const rgeCanvas = loadCanvas("game");
+  const { canvas, context } = rgeCanvas;
+
+  canvas.width = window.innerWidth * window.devicePixelRatio;
+  canvas.height = window.innerHeight * window.devicePixelRatio;
+
+  window.addEventListener("resize", () => {
+    canvas.width = window.innerWidth * window.devicePixelRatio;
+    canvas.height = window.innerHeight * window.devicePixelRatio;
+    context.imageSmoothingEnabled = false;
+  });
+
+  context.imageSmoothingEnabled = false;
+
+  requestAnimationFrame(animate);
+
+  const LEVEL_TO_RENDER = 10;
+  const root: Node = {
+    rectangle: {
+      index,
+      position: { x: 0, y: 0 },
+      width: 256,
+      height: 256,
+    },
+    depth: 0,
+  };
+
+  addNode(root, TILE_SIZE, 10);
+
+  const gameSprites: SpriteSheet = {
+    asset: loadImage("game-sprites"),
+    tileSize: 32,
+  };
+
+  const player: PlayerEntity = {
+    id: 0,
+    type: EntityEnum.PLAYER,
+    color: "WHITE",
+    position: { x: 0, y: 0, },
+    spawnTimestamp: Date.now(),
+    sprite: {
+      spriteSheet: gameSprites,
+      current: 0,
+      positions: [{ x: 4, y: 1 }, { x: 5, y: 1 }, { x: 6, y: 1 }, { x: 7, y: 1 }]
+    },
+    health: {
+      isAlive: true,
+      value: 1,
+    },
+    eyes: {
+      viewDistance: DEFAULT_PLAYER_VIEW_DISTANCE,
+      direction: { x: 0, y: -1 },
+      memory: {
+        canRemember: false,
+        duration: 5000,
+        endTimestamp: 0,
+      }
+    },
+    movment: {
+      body: { x: 0, y: 0, },
+      direction: { x: 0, y: 0, },
+      speed: DEFAULT_PLAYER_SPEED,
+    },
+  };
+
+
+
+  const mapSprite: MapSprite = {
+    spriteSheet: gameSprites,
+    tileTypeSpriteCount: 4,
+    startGroundPosition: { x: 1, y: 4 },
+    startWallPosition: { x: 5, y: 4 },
+    startWallIndex: 8,
+  };
+
+  const ambientLighting: AmbientLighting = {
+    value: 1,
+    modifier: true
+  };
+
+  const dayTimeColorPallette: MapTimeColorPallete[] = [
+    { time: 0, color: { r: 0, g: 0, b: 0 } },
+    { time: 0.40, color: { r: 0, g: 0, b: 0 } },
+    //{ time: 0.5, r: 218, g: 120, b: 85 },
+    { time: 0.5, color: { r: 210, g: 100, b: 61 } },
+    { time: 0.6, color: { r: 210, g: 100, b: 61 } },
+    //{ time: 0.7, r: 245, g: 183, b: 128 },
+    { time: 0.7, color: { r: 119, g: 189, b: 233 } },
+    { time: 0.75, color: { r: 81, g: 170, b: 231, } },
+    { time: 0.8, color: { r: 23, g: 45, b: 80 } },
+    { time: 1, color: { r: 0, g: 0, b: 0 } },
+  ];
+
+  const camera: Camera = {
+    position: { x: 0, y: 0 },
+    direction: { x: 0, y: 0 },
+    speed: 100,
+    freelook: true,
+  };
+
+  const houseData: HouseData = {
+    bottom: {
+      count: 5,
+      startIndex: 14,
+    },
+    top: {
+      count: 2,
+      startIndex: 27,
+    },
+    leftBottom: {
+      count: 1,
+      startIndex: 12,
+    },
+    rightBottom: {
+      count: 1,
+      startIndex: 13,
+    },
+    left: {
+      count: 2,
+      startIndex: 23,
+    },
+    right: {
+      count: 2,
+      startIndex: 25,
+    },
+    leftTop: {
+      count: 1,
+      startIndex: 19,
+    },
+    rightTop: {
+      count: 1,
+      startIndex: 20,
+    },
+    leftCeil: {
+      count: 4,
+      startIndex: 21,
+    },
+    rightCeil: {
+      count: 4,
+      startIndex: 22,
+    },
+    floor: {
+      count: 4,
+      startIndex: 4,
+    },
+    door: {
+      count: 1,
+      startIndex: 29,
+    },
+  };
+
+
+  const directionalInputs: DirectionKeyboardInput[] = [];
+  setupKeyEvents(directionalInputs, []);
+  const mapData = await generateMap(generateMapData(TILE_SIZE, MAP_TILES_WIDTH, MAP_TILES_HEIGHT, mapSprite, ambientLighting, dayTimeColorPallette));
+
+  function placeHouses(node: Node) {
+    if (node.depth !== LEVEL_TO_RENDER) {
+      if (node.left) {
+        placeHouses(node.left);
+      }
+
+      if (node.right) {
+        placeHouses(node.right);
+      }
+      return;
+    }
+
+    const size = { x: Math.floor(node.rectangle.width) - 2, y: Math.floor(node.rectangle.height) - 2 };
+
+    if (size.x < 5 || size.y < 5 || rand(0, 1000) < 300) {
+      return;
+    }
+
+    const house: House = {
+      doorPosition: { x: node.rectangle.position.x + 2, y: node.rectangle.position.y + size.y },
+      position: { x: node.rectangle.position.x + 1, y: node.rectangle.position.y + 1 },
+      size
+    };
+
+    placeHouseOnMap(mapData, houseData, house);
+  }
+  placeHouses(root);
+
+  let lastTime = 0;
+  function animate(time: number) {
+    requestAnimationFrame(animate);
+
+    const dt = (time - lastTime) / 1000;
+    lastTime = time;
+
+    moveCamera(player, camera, mapData, directionalInputs, canvas, dt);
+
+    updateMapWithoutFog(mapData, camera, canvas);
+
+    clearCanvas("BLACK", rgeCanvas);
+
+    context.beginPath();
+    drawMap(camera, mapData, rgeCanvas);
+
+    //drawGrid(TILE_SIZE, camera, rgeCanvas);
+
+    context.beginPath();
+    context.strokeStyle = "RED";
+    drawTree(camera, TILE_SIZE, rgeCanvas, root);
+    context.stroke();
+  }
+}
+
+type Rectangle = {
+  index: number;
+  position: Vector2;
+  width: number;
+  height: number;
+};
+
+type Node = {
+  rectangle: Rectangle;
+  left?: Node;
+  right?: Node;
+  depth: number;
+};
+
+function addNode(node: Node, tileSize: number, depth = 1) {
+  if (depth === 0) {
+    return;
+  }
+
+  const r = randF(0.4, 0.6);
+  if (node.rectangle.width > node.rectangle.height) {
+    const width = Math.floor(node.rectangle.width * r);
+
+    node.left = {
+      rectangle: {
+        index: index + 1,
+        position: { x: node.rectangle.position.x, y: node.rectangle.position.y },
+        width,
+        height: node.rectangle.height
+      },
+      depth: node.depth + 1
+    };
+
+    node.right = {
+      rectangle: {
+        index: index + 2,
+        position: { x: node.rectangle.position.x + width, y: node.rectangle.position.y },
+        width: Math.abs(node.rectangle.width - width),
+        height: node.rectangle.height
+      },
+      depth: node.depth + 1
+    }
+
+    index += 2;
+    addNode(node.left, tileSize, depth - 1);
+    addNode(node.right, tileSize, depth - 1);
+  } else {
+    const height = Math.floor(node.rectangle.height * r);
+
+    node.left = {
+      rectangle: {
+        index: index + 1,
+        position: { x: node.rectangle.position.x, y: node.rectangle.position.y },
+        width: node.rectangle.width,
+        height
+      },
+      depth: node.depth + 1
+    };
+
+    node.right = {
+      rectangle: {
+        index: index + 2,
+        position: { x: node.rectangle.position.x, y: node.rectangle.position.y + height },
+        width: node.rectangle.width,
+        height: Math.abs(node.rectangle.height - height)
+      },
+      depth: node.depth + 1
+    }
+
+    index += 2;
+    addNode(node.left, tileSize, depth - 1);
+    addNode(node.right, tileSize, depth - 1);
+  }
+}
+
+export function drawTree(camera: Camera, tileSize: number, rgeCanvas: RGE_Canvas, node?: Node) {
+  if (node === undefined) {
+    return;
+  }
+
+  const { context } = rgeCanvas;
+
+  context.strokeStyle = "RED";
+
+  context.rect(
+    (node.rectangle.position.x - camera.position.x) * tileSize,
+    (node.rectangle.position.y - camera.position.y) * tileSize,
+    node.rectangle.width * tileSize,
+    node.rectangle.height * tileSize,
+  );
+
+  if (DEBUG) {
+    context.font = "60px bold sans-serif";
+    context.fillStyle = "RED";
+
+    context.fillText(
+      node.rectangle.index.toString(),
+      (node.rectangle.position.x + node.rectangle.width / 2) * tileSize,
+      (node.rectangle.position.y + node.rectangle.height / 2) * tileSize
+    );
+  }
+
+  drawTree(camera, tileSize, rgeCanvas, node.left);
+  drawTree(camera, tileSize, rgeCanvas, node.right);
+}

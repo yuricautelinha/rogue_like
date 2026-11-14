@@ -4,7 +4,7 @@ import { CompassEnum } from "./models.js";
 
 export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
-const myRandom = mulberry32(SEED);
+export const myRandom = mulberry32(SEED);
 
 export function loadCanvas(elementId: string): RGE_Canvas {
   const canvas = document.getElementById(elementId);
@@ -71,18 +71,25 @@ export function drawGrid(
   const offsetX = camera.position.x % 1;
   const offsetY = camera.position.y % 1;
 
+  context.beginPath();
   context.strokeStyle = strokeColor;
+  context.lineWidth = 1;
   for (let y = 0; y < yCount; ++y) {
-    for (let x = 0; x < xCount; ++x) {
-      context.rect(
-        (x - offsetX) * tileSize,
-        (y - offsetY) * tileSize,
-        tileSize,
-        tileSize
-      );
-    }
+    context.moveTo(0, (y - offsetY) * tileSize);
+    context.lineTo(canvas.width, (y - offsetY) * tileSize);
   }
   context.stroke();
+  context.closePath();
+
+  context.beginPath();
+  context.strokeStyle = strokeColor;
+  context.lineWidth = 1;
+  for (let x = 0; x < xCount; ++x) {
+    context.moveTo((x - offsetX) * tileSize, 0);
+    context.lineTo((x - offsetX) * tileSize, canvas.height);
+  }
+  context.stroke();
+  context.closePath();
 }
 
 export const vectorMagnitude = (vector2: Vector2): number =>
@@ -107,8 +114,11 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-export const rand = (min: number = 0, max: number = 10): number =>
-  Math.floor(myRandom() * (max - min + 1) + min);
+export const rand = (min: number = 0, max: number = 10, randomFn = Math.random): number =>
+  Math.floor(randomFn() * (max - min + 1) + min);
+
+export const randF = (min: number = 0, max: number = 10, randomFn = Math.random): number =>
+  randomFn() * (max - min) + min;
 
 export const sleep = (sleepTime: number) =>
   new Promise(resolve => setTimeout(resolve, sleepTime))

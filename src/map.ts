@@ -1,5 +1,5 @@
 import { OUTBOUNDED_INDEX } from "./constants.js";
-import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, type Vector2, type AmbientLighting, type WorldTime, type MapTimeColorPallete, type RGBColor, type PlayerEntity, type FireplaceEntity, type TorchEntity } from "./models.js";
+import { type MapData, type TileMapData, TileTypeEnum, type MapSprite, type TileMap, type Camera, type RGE_Canvas, type Entity, type Vector2, type AmbientLighting, type WorldTime, type MapTimeColorPallete, type RGBColor, type PlayerEntity, type FireplaceEntity, type TorchEntity, type HouseData, type House } from "./models.js";
 import { clearCanvas, getOrThrow, lerp, rand, sleep } from "./utils.js";
 
 const miniMapCamera: Camera = {
@@ -281,7 +281,7 @@ export function generateMapData(
 }
 
 export async function generateMap(mapData: MapData): Promise<MapData> {
-  const { tilesData: tiles, map, width, height, mapSprite, spawnPosition } = mapData;
+  const { map, width, height, mapSprite, spawnPosition } = mapData;
   const coverage = 20 + rand(0, 15);
 
   let n = (width * height) * (coverage * 0.025);
@@ -333,7 +333,7 @@ export async function generateMap(mapData: MapData): Promise<MapData> {
 
     const tile = map[y]?.[x];
 
-    if (tile && tiles[tile.tileMapDataId]?.type === TileTypeEnum.WALL) {
+    if (tile?.canWalk === false) {
       tile.tileMapDataId = rand(0, mapSprite.tileTypeSpriteCount - 1);
       tile.canWalk = true;
       n--;
@@ -590,3 +590,117 @@ const wallTileMap = (mapSprite: MapSprite, tileMapDataId?: number): TileMap => (
   reveleadTimestamp: null,
   canWalk: false,
 });
+
+export function placeHouseOnMap(mapData: MapData, houseData: HouseData, house: House) {
+  const hx = house.position.x;
+  const hy = house.position.y;
+
+  const hw = house.size.x - 1;
+  const hh = house.size.y - 1;
+
+  const makeTileMap = (tileMapDataId: number): TileMap => ({
+    canWalk: false,
+    tileMapDataId,
+    revelead: false,
+    visible: false,
+    visibleBySun: false,
+    reveleadTimestamp: null,
+  });
+
+  if (mapData.map[hy]?.[hx]) {
+    mapData.map[hy][hx] = makeTileMap(rand(houseData.leftTop.startIndex, houseData.leftTop.startIndex + houseData.leftTop.count - 1));
+  }
+
+  {
+    const my = hy + hh;
+    if (mapData.map[my]?.[hx]) {
+      mapData.map[my][hx] = makeTileMap(rand(houseData.leftBottom.startIndex, houseData.leftBottom.startIndex + houseData.leftBottom.count - 1));
+    }
+  }
+
+  {
+    const mx = hx + hw;
+    if (mapData.map[hy]?.[mx]) {
+      mapData.map[hy][mx] = makeTileMap(rand(houseData.rightTop.startIndex, houseData.rightTop.startIndex + houseData.rightTop.count - 1));
+    }
+  }
+
+  {
+    const mx = hx + hw;
+    const my = hy + hh;
+    if (mapData.map[my]?.[mx]) {
+      mapData.map[my][mx] = makeTileMap(rand(houseData.rightBottom.startIndex, houseData.rightBottom.startIndex + houseData.rightBottom.count - 1));
+    }
+  }
+
+  for (let y = 1; y < hh + 1; ++y) {
+    if (y < hh) {
+      {
+        const my = hy + y;
+        if (mapData.map[my]?.[hx]) {
+          mapData.map[my][hx] = makeTileMap(rand(houseData.left.startIndex, houseData.left.startIndex + houseData.left.count - 1));
+        }
+      }
+
+      {
+        const mx = hx + hw;
+        const my = hy + y;
+        if (mapData.map[my]?.[mx]) {
+          mapData.map[my][mx] = makeTileMap(rand(houseData.right.startIndex, houseData.right.startIndex + houseData.right.count - 1));
+        }
+      }
+    }
+
+    for (let x = 1; x < hw; ++x) {
+      if (y === hh) {
+        {
+          const mx = hx + x;
+          if (mapData.map[hy]?.[mx]) {
+            mapData.map[hy][mx] = makeTileMap(rand(houseData.top.startIndex, houseData.top.startIndex + houseData.top.count - 1));
+          }
+        }
+
+        {
+          const mx = hx + x;
+          const my = hy + hh;
+          if (mapData.map[my]?.[mx]) {
+            mapData.map[my][mx] = makeTileMap(rand(houseData.bottom.startIndex, houseData.bottom.startIndex + houseData.bottom.count - 1));
+          }
+        }
+      }
+      else {
+        const mx = hx + x;
+        const my = hy + y;
+        if (mapData.map[my]?.[mx]) {
+          mapData.map[my][mx] = makeTileMap(rand(houseData.floor.startIndex, houseData.floor.startIndex + houseData.floor.count - 1));
+          mapData.map[my][mx].canWalk = true;
+        }
+      }
+    }
+  }
+
+  {
+    const my = hy + hh - 1;
+    if (mapData.map[my]?.[hx]) {
+      mapData.map[my][hx] = makeTileMap(houseData.leftCeil.startIndex);
+    }
+  }
+
+  {
+    const mx = hx + hw;
+    const my = hy + hh - 1;
+    if (mapData.map[my]?.[mx]) {
+      mapData.map[my][mx] = makeTileMap(houseData.rightCeil.startIndex);
+    }
+  }
+
+  {
+    const mx = house.doorPosition.x;
+    const my = house.doorPosition.y;
+    if (mapData.map[my]?.[mx]) {
+      mapData.map[my][mx] = makeTileMap(houseData.door.startIndex);
+    }
+  }
+}
+
+
